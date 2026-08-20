@@ -50,9 +50,17 @@ Every step of this is real and has been run end to end against the deployed prod
 
 ## Verification
 
-- [ ] Submitted a real job from the deployed frontend, confirmed the GitHub Actions run was dispatched, confirmed real progress updates arrived and rendered live on the dashboard, confirmed final status reached the frontend - all against production URLs.
+- [x] Submitted a real job from the deployed frontend, confirmed the GitHub Actions run was dispatched, confirmed real progress updates arrived and rendered live on the dashboard, confirmed final status reached the frontend - all against production URLs.
 
-(Filled in once the production deploy is live and tested - see the rest of this session for that verification.)
+Done against the live production deploy (`https://frontend-dun-chi-56.vercel.app`), not localhost:
+
+1. Submitted a job through the actual dashboard form (not just curl) - `App URL: https://example.com`.
+2. `POST /api/jobs` created a `Job` row in the real Neon database and dispatched `workflow_dispatch` on `Eddiegah/truedemo`.
+3. `gh run list` confirmed a real GitHub Actions run started within seconds and finished `completed / success` in 25s.
+4. The worker's webhook calls landed on `/api/jobs/[id]/progress` and updated Postgres in real time - confirmed by reading the live DOM mid-run: status was `running` with 3 of 5 progress entries rendered, then `completed` with all 5 after the run finished, entirely from the dashboard's own 2.5s poll loop (no manual refresh).
+5. The completed job showed the (clearly-labeled, non-real) stub video link, proving the full loop - frontend to queue to worker to webhook to database to UI - works without any manual intervention.
+
+One real hiccup during setup, noted here rather than glossed over: the first `prisma db push` against Neon failed with `P1001: Can't reach database server` - a TCP check confirmed port 5432 was reachable, so this was Neon's serverless compute waking from idle (cold start), not a real connectivity problem. Retrying immediately succeeded. Worth knowing if a first request after idle ever seems to hang - it's an inherent tradeoff of Neon's free-tier autosuspend, not a bug in this pipeline.
 
 ## Setup
 
