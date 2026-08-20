@@ -1,0 +1,5 @@
+# Phase 1: just enough to prove the architecture (dispatch -> runner ->
+# webhook progress updates) works end to end with a stub pipeline.
+# Playwright, TTS, and video assembly deps get added in Phase 2 once this
+# is verified.
+requests==2.32.3

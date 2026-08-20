@@ -1,0 +1,48 @@
+name: Process Job
+
+# Triggered via the GitHub API (workflow_dispatch) from the Next.js backend
+# when a job is submitted - this IS the job queue for TrueDemo. No Redis,
+# no persistent worker container: GitHub Actions' own runner scheduling
+# provides queueing at zero cost, which is the whole point of this
+# architecture choice (see README for the full reasoning).
+on:
+  workflow_dispatch:
+    inputs:
+      job_id:
+        description: "Job ID (Postgres row id)"
+        required: true
+        type: string
+      url:
+        description: "App URL to explore"
+        required: true
+        type: string
+      repo_url:
+        description: "Optional GitHub repo URL for code grounding"
+        required: false
+        type: string
+        default: ""
+
+jobs:
+  process:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        working-directory: worker
+        run: pip install -r requirements.txt
+
+      - name: Run pipeline
+        working-directory: worker
+        run: |
+          python src/main.py \
+            --job-id "${{ inputs.job_id }}" \
+            --url "${{ inputs.url }}" \
+            --repo-url "${{ inputs.repo_url }}" \
+            --webhook-url "${{ secrets.WEBHOOK_URL }}" \
+            --webhook-secret "${{ secrets.WEBHOOK_SECRET }}"

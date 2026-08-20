@@ -1,0 +1,28 @@
+# frontend (Next.js)
+frontend/node_modules/
+frontend/.next/
+frontend/out/
+frontend/build/
+frontend/.vercel
+frontend/*.tsbuildinfo
+frontend/next-env.d.ts
+
+# worker (Python)
+worker/venv/
+worker/__pycache__/
+worker/**/__pycache__/
+worker/*.egg-info/
+
+# generated artifacts - never commit rendered videos or intermediate assets
+worker/output/
+*.mp4
+*.wav
+
+# env files
+.env
+.env.local
+.env*.local
+
+# OS
+.DS_Store
+Thumbs.db

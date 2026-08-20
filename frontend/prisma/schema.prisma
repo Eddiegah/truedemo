@@ -1,0 +1,24 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Phase 1: proves the architecture (dispatch -> GitHub Actions runner ->
+// webhook progress updates -> frontend polling) works end to end with a
+// stub pipeline. The real exploration/narration/video fields get added
+// once the actual agent exists - no point modeling data we can't produce yet.
+model Job {
+  id           String   @id @default(cuid())
+  url          String
+  repoUrl      String?
+  status       String   @default("queued") // queued | running | completed | failed
+  progressLog  Json     @default("[]")
+  videoUrl     String?
+  errorMessage String?
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
