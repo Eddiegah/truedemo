@@ -19,7 +19,7 @@ export async function dispatchJob(jobId: string, url: string, repoUrl: string | 
       "Content-Type": "application/json",
     },
     body: JSON.stringify({
-      ref: "master",
+      ref: "main",
       inputs: {
         job_id: jobId,
         url,
