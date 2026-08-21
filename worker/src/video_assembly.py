@@ -12,7 +12,8 @@ from pathlib import Path
 
 from action_log import ActionLog
 
-RESOLUTION = "1280x800"
+WIDTH, HEIGHT = 1280, 800
+RESOLUTION = f"{WIDTH}x{HEIGHT}"
 CLIP_TIMEOUT_SECONDS = 60
 CONCAT_TIMEOUT_SECONDS = 60
 
@@ -32,8 +33,21 @@ def _find_font() -> str | None:
     return None
 
 
+def _run_ffmpeg(cmd: list[str], timeout: int) -> None:
+    """subprocess.run's CalledProcessError.__str__ only includes the exit
+    code, not stdout/stderr - even with capture_output=True, the actual
+    ffmpeg diagnostic gets silently swallowed unless it's pulled out and
+    included explicitly here."""
+    try:
+        subprocess.run(cmd, check=True, capture_output=True, timeout=timeout, text=True)
+    except subprocess.CalledProcessError as err:
+        raise RuntimeError(
+            f"ffmpeg failed (exit {err.returncode}): {(err.stderr or '').strip()[-2000:]}"
+        ) from err
+
+
 def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | None, out_path: Path) -> None:
-    vf_parts = [f"scale={RESOLUTION}:force_original_aspect_ratio=decrease,pad={RESOLUTION}:(ow-iw)/2:(oh-ih)/2"]
+    vf_parts = [f"scale={RESOLUTION}:force_original_aspect_ratio=decrease,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2"]
     if font:
         vf_parts.append(
             f"drawtext=fontfile={font}:textfile={caption_file}:fontsize=28:fontcolor=white:"
@@ -50,7 +64,7 @@ def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | Non
         "-shortest",
         str(out_path),
     ]
-    subprocess.run(cmd, check=True, capture_output=True, timeout=CLIP_TIMEOUT_SECONDS)
+    _run_ffmpeg(cmd, CLIP_TIMEOUT_SECONDS)
 
 
 def assemble_video(action_log: ActionLog, work_dir: Path, output_path: Path) -> Path:
@@ -77,11 +91,9 @@ def assemble_video(action_log: ActionLog, work_dir: Path, output_path: Path) -> 
     )
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    subprocess.run(
+    _run_ffmpeg(
         ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list), "-c", "copy", str(output_path)],
-        check=True,
-        capture_output=True,
-        timeout=CONCAT_TIMEOUT_SECONDS,
+        CONCAT_TIMEOUT_SECONDS,
     )
 
     shutil.rmtree(work_dir, ignore_errors=True)
