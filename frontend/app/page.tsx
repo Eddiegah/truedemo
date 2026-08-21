@@ -72,8 +72,8 @@ export default function Home() {
   return (
     <main className="mx-auto min-h-screen max-w-2xl px-4 py-16">
       <div className="mb-2 inline-flex items-center gap-2 rounded-full border border-zinc-800 bg-zinc-900 px-3 py-1 text-xs font-medium text-zinc-400">
-        <span className="h-1.5 w-1.5 rounded-full bg-amber-400" />
-        Phase 1 — architecture proof, stub pipeline
+        <span className="h-1.5 w-1.5 rounded-full bg-emerald-400" />
+        Real pipeline live — UI polish, auth &amp; video library still ahead
       </div>
       <h1 className="mt-3 text-3xl font-bold tracking-tight text-white">TrueDemo</h1>
       <p className="mt-2 text-sm text-zinc-400">

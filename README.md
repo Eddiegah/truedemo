@@ -8,11 +8,11 @@
 
 ---
 
-## ⚠️ Current status: Phase 1 only
+## Current status: core pipeline is real and verified
 
-This repo currently proves the **architecture**, not the product. The pipeline that submits a job, dispatches a real worker, and gets live status back through a real database is fully working and verified end to end - but the worker itself is a stub that fakes four progress stages and sleeps between them. It does not yet explore a real app, read a real repo, write real narration, or render a real video.
+The full pipeline is real, not a stub: a real headless browser explores the target app, the target repo is actually cloned and read for technical grounding, Gemini writes narration from that real context, Piper synthesizes it locally, ffmpeg assembles a captioned video, and it's published as a real GitHub Release asset - all triggered from the deployed frontend and verified against production, not localhost. See [Verification](#verification) for the actual run.
 
-That's deliberate, not a shortcut: this is a genuinely large, multi-service build (browser automation, LLM-driven exploration, TTS, video assembly, all wired to a real job pipeline), and building the plumbing first - then verifying it actually works before writing a single line of the real agent - is the only honest way to build something this size without ending up with impressive-looking code that's never actually been proven to run. See [Roadmap](#roadmap) for what Phase 2 adds.
+What's still ahead, honestly: the UI is functional Tailwind, not the polished shadcn/ui + Framer Motion design system the spec calls for; there's no auth or video library yet; and the landing page doesn't yet have the concrete side-by-side proof section the positioning below promises. See [Roadmap](#roadmap).
 
 ## Strategic positioning
 
@@ -29,38 +29,52 @@ Two real, separately-deployed services - and the reasoning behind each choice, i
 | Job queue | GitHub Actions' own dispatch/scheduling | No Redis/Upstash. The queue's whole purpose in the original spec was handing work from a lightweight frontend to a persistent worker - if the "worker" *is* a GitHub Actions run triggered directly via the API, a separate queue is redundant infrastructure with no job it's actually doing here. |
 | Database | **Neon Postgres**, not "Vercel Postgres" | Free tier, no card, doesn't expire - the same proven pattern already used in another project this session. "Vercel Postgres" is Neon under the hood anyway; using Neon directly avoids any ambiguity about which billing tier applies. |
 | Real-time updates | Polling (2.5s interval), not WebSockets | Vercel serverless functions can't hold a persistent WebSocket connection open without a separate paid real-time service (Pusher/Ably, etc.). Polling a lightweight status endpoint is free, simple, and - at this job frequency - genuinely indistinguishable from push in practice. |
-| Narration TTS (Phase 2) | Piper (open-source, runs locally in the Actions runner) | Zero API cost, no card. Honest tradeoff: voice quality won't match a paid API like ElevenLabs - that'll be stated plainly in the product, not glossed over. |
-| LLM (Phase 2) | Gemini free tier | Already proven working, no card, generous free quota. |
-| Video hosting (Phase 2) | GitHub Releases | Free, no card, sufficient for demo-scale video files. |
+| Narration TTS | Piper (open-source, runs locally in the Actions runner) | Zero API cost, no card. Honest tradeoff: voice quality is noticeably more robotic than a paid API like ElevenLabs - stated plainly here, not glossed over. |
+| LLM | Gemini free tier | Model selection tries `gemini-flash-latest` (Google's own version-drift-proof alias) first, with pinned fallbacks and a short retry for transient 503 "high demand" responses - both failure modes were hit for real during testing, not hypothetical. |
+| Video hosting | GitHub Releases | Free, no card, sufficient for demo-scale video files. |
 
 ### How a job actually flows right now
 
 1. Browser submits a URL (+ optional repo) to `POST /api/jobs`.
 2. That creates a `Job` row in Neon Postgres (`status: queued`) and calls the GitHub API to trigger `workflow_dispatch` on `.github/workflows/process-job.yml`, passing the job id, URL, and repo URL as inputs.
-3. A GitHub Actions runner picks up the job (this is the real queueing step - no code of ours manages it), checks out the repo, installs the worker's Python dependencies, and runs `worker/src/main.py`.
-4. The worker script POSTs progress updates to `POST /api/jobs/[id]/progress`, authenticated with a shared secret (`WEBHOOK_SECRET`) rather than user auth, since the caller is a CI runner, not a browser session.
-5. Each webhook call appends to the job's `progressLog` and updates its `status` in Postgres.
-6. The dashboard polls `GET /api/jobs/[id]` every 2.5s and renders the live log.
+3. A GitHub Actions runner picks up the job (this is the real queueing step - no code of ours manages it), checks out the repo, installs ffmpeg/Python deps/the Playwright browser, and runs `worker/src/main.py`.
+4. `agent.py` drives a real headless Chromium around the target app (bounded to 6 steps, same-origin only, loop-safe) and screenshots each step.
+5. `repo_context.py` shallow-clones the target repo (if given) and extracts its README, dependency manifests, and file tree - including manifests in monorepo subdirectories, not just the root.
+6. `script_writer.py` sends that real action log + repo context to Gemini, which writes narration grounded in what the app actually is, not generic marketing language.
+7. `narration.py` synthesizes each line locally with Piper TTS.
+8. `video_assembly.py` burns captions onto each screenshot, muxes in its narration audio via ffmpeg, and concatenates all clips into one video.
+9. `video_release.py` publishes it as a GitHub Release asset and returns the public download URL.
+10. Every stage POSTs progress to `POST /api/jobs/[id]/progress` (shared-secret auth, since the caller is a CI runner, not a browser session), which the dashboard polls every 2.5s.
 
 Every step of this is real and has been run end to end against the deployed production URLs, not just localhost - see [Verification](#verification).
 
 ## Roadmap
 
-**Phase 2** (not built yet): replace the stub `worker/src/main.py` with the real pipeline - Playwright-driven autonomous exploration with loop safeguards, GitHub repo context grounding, timestamped action logging, Gemini-based script generation grounded in actual code, Piper TTS narration, ffmpeg video assembly with zooms/captions. Landing page with the concrete side-by-side proof of the technical-accuracy claim. Full shadcn/ui design system, Framer Motion micro-interactions, auth via next-auth, video library/sharing.
+Still ahead, not yet built: a landing page with the concrete side-by-side proof of the technical-accuracy claim, the full shadcn/ui design system + Framer Motion micro-interactions (the UI today is functional but plain Tailwind), auth via next-auth, and a video library/sharing view. The core generation pipeline itself is done and verified - what's left is presentation and accounts, not the hard technical part.
 
 ## Verification
 
-- [x] Submitted a real job from the deployed frontend, confirmed the GitHub Actions run was dispatched, confirmed real progress updates arrived and rendered live on the dashboard, confirmed final status reached the frontend - all against production URLs.
+- [x] Architecture proof: job submission → GitHub Actions dispatch → webhook progress → Postgres → live dashboard polling, all against production URLs.
+- [x] Real pipeline: a real generated video, produced end to end from a real job submitted through the deployed frontend, published as a real GitHub Release asset.
 
-Done against the live production deploy (`https://frontend-dun-chi-56.vercel.app`), not localhost:
+**Real pipeline run**, against the live production deploy (`https://frontend-dun-chi-56.vercel.app`), target app `https://playwright.dev`, grounded against this repo:
 
-1. Submitted a job through the actual dashboard form (not just curl) - `App URL: https://example.com`.
-2. `POST /api/jobs` created a `Job` row in the real Neon database and dispatched `workflow_dispatch` on `Eddiegah/truedemo`.
-3. `gh run list` confirmed a real GitHub Actions run started within seconds and finished `completed / success` in 25s.
-4. The worker's webhook calls landed on `/api/jobs/[id]/progress` and updated Postgres in real time - confirmed by reading the live DOM mid-run: status was `running` with 3 of 5 progress entries rendered, then `completed` with all 5 after the run finished, entirely from the dashboard's own 2.5s poll loop (no manual refresh).
-5. The completed job showed the (clearly-labeled, non-real) stub video link, proving the full loop - frontend to queue to worker to webhook to database to UI - works without any manual intervention.
+1. Submitted via `POST /api/jobs` - created a real `Job` row and dispatched a real GitHub Actions run.
+2. `agent.py` explored the live app with a real headless browser and completed 7 steps.
+3. `repo_context.py` cloned this repo and extracted real context (manifests, README, file tree).
+4. `script_writer.py` got real narration back from Gemini, grounded in that context.
+5. `narration.py` synthesized real audio for every line with Piper.
+6. `video_assembly.py` produced a real 47.6s, 1280×800 h264/aac mp4 with burned-in captions.
+7. `video_release.py` published it to a real GitHub Release: `Eddiegah/truedemo` release `demo-cmt3d2ofo0000ji04ouwcrcth`.
+8. The dashboard's own 2.5s poll loop reflected every stage live, ending in `completed` with a working video link - confirmed by downloading the actual file and inspecting it with `ffprobe`, not just checking the HTTP status.
 
-One real hiccup during setup, noted here rather than glossed over: the first `prisma db push` against Neon failed with `P1001: Can't reach database server` - a TCP check confirmed port 5432 was reachable, so this was Neon's serverless compute waking from idle (cold start), not a real connectivity problem. Retrying immediately succeeded. Worth knowing if a first request after idle ever seems to hang - it's an inherent tradeoff of Neon's free-tier autosuspend, not a bug in this pipeline.
+Real bugs found and fixed only by testing against the real infrastructure, not glossed over:
+
+- **ffmpeg's `pad` filter doesn't take `scale`'s `WxH` shorthand.** `pad=1280x800:(ow-iw)/2:(oh-ih)/2` parsed `"1280x800"` as a single width expression and failed with `Invalid chars 'x800'` - silently, at first, because `subprocess.run(capture_output=True)` was dropping ffmpeg's actual stderr. Fixed both: `_run_ffmpeg()` now surfaces the real ffmpeg error, and `pad` gets `width:height` as separate arguments. Only caught by reproducing the exact failing command locally with a real ffmpeg binary and real input files, not by reasoning about the exit code alone.
+- **Gemini's free-tier model lineup moved during this build.** `gemini-2.5-flash` (the initial pick) now 404s for new users with the API pointing at `gemini-3.6-flash` in its own error message; separately, `gemini-flash-latest` (Google's stable alias, meant to be immune to exactly this) returned a transient `503 high demand`. Fixed by trying `gemini-flash-latest` first with a couple of retries on 503 specifically, then pinned fallbacks - both paths were exercised for real, not just written defensively and hoped to work.
+- **`piper-tts` 1.7.0's API differs from older docs/examples.** `PiperVoice.synthesize()` now returns a generator of `AudioChunk` objects (with their own sample rate/width/channel metadata) rather than writing directly into a wave file. Fixed by reading the installed package's actual source instead of trusting an older example.
+
+One earlier hiccup, from the Phase 1 architecture proof: the first `prisma db push` against Neon failed with `P1001: Can't reach database server` - a TCP check confirmed port 5432 was reachable, so this was Neon's compute waking from idle (cold start), not a real connectivity problem. Retrying immediately succeeded.
 
 ## Setup
 
@@ -92,6 +106,9 @@ Requires the frontend running locally (`npm run dev` in `frontend/`) so the webh
 On the repo (Settings → Secrets and variables → Actions), set:
 - `WEBHOOK_URL` - the deployed frontend's base URL
 - `WEBHOOK_SECRET` - must match the frontend's `WEBHOOK_SECRET` env var exactly
+- `GEMINI_API_KEY` - from [aistudio.google.com/apikey](https://aistudio.google.com/apikey), free tier
+
+`GITHUB_TOKEN` (for publishing the finished video as a Release asset) and `GITHUB_REPO` need no setup - the workflow gets them automatically from GitHub Actions' own built-in context.
 
 ## License
 
