@@ -22,6 +22,9 @@ on:
         type: string
         default: ""
 
+permissions:
+  contents: write  # needed to publish the finished video as a GitHub Release asset
+
 jobs:
   process:
     runs-on: ubuntu-latest
@@ -33,14 +36,25 @@ jobs:
         with:
           python-version: "3.11"
 
-      - name: Install dependencies
+      - name: Install system dependencies (ffmpeg, caption font)
+        run: sudo apt-get update && sudo apt-get install -y ffmpeg fonts-dejavu-core
+
+      - name: Install Python dependencies
         working-directory: worker
         run: pip install -r requirements.txt
 
-      - name: Run pipeline
+      - name: Install Playwright browser
         working-directory: worker
+        run: python -m playwright install --with-deps chromium
+
+      - name: Run pipeline
+        working-directory: worker/src
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GITHUB_REPO: ${{ github.repository }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         run: |
-          python src/main.py \
+          python main.py \
             --job-id "${{ inputs.job_id }}" \
             --url "${{ inputs.url }}" \
             --repo-url "${{ inputs.repo_url }}" \

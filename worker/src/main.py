@@ -1,19 +1,33 @@
 """
-Phase 1 stub pipeline: proves the architecture end to end (GitHub Actions
-runner -> webhook progress updates -> Postgres -> frontend polling) with
-fake stages, not the real exploration/narration/video work yet.
+Phase 2: the real pipeline. Explores the live app with a real browser,
+grounds understanding in the real source repo, writes narration with
+Gemini, synthesizes it with local TTS, and assembles a captioned video -
+then publishes it as a GitHub Release asset and reports the URL back.
 
-Real thing this replaces, coming in Phase 2:
-    Playwright exploration -> repo context grounding -> script writing ->
-    Piper TTS narration -> ffmpeg video assembly
+Every stage posts progress via webhook as it completes. Any stage
+failing marks the job failed with a real error message rather than
+silently producing a broken or fake result - this pipeline's whole
+premise is technical honesty, which has to hold for its own failure
+modes too.
 
 Usage: python src/main.py --job-id JOB_ID --url URL [--repo-url URL]
+       --webhook-url URL --webhook-secret SECRET
+Requires env vars: GEMINI_API_KEY, GH_TOKEN, GITHUB_REPO
 """
 import argparse
+import os
 import sys
-import time
+import tempfile
+from pathlib import Path
 
 import requests
+
+from agent import explore
+from repo_context import get_repo_context
+from script_writer import write_narration
+from narration import synthesize_narration
+from video_assembly import assemble_video
+from video_release import publish_video
 
 
 def post_progress(job_id: str, webhook_url: str, webhook_secret: str, stage: str, **extra) -> None:
@@ -44,28 +58,47 @@ def main() -> int:
     def progress(stage: str, **extra) -> None:
         post_progress(args.job_id, args.webhook_url, args.webhook_secret, stage, **extra)
 
-    print(f"Processing job {args.job_id} for {args.url} (repo: {args.repo_url or 'none'})")
+    github_repo = os.environ.get("GITHUB_REPO")
+    if not github_repo:
+        progress("Worker misconfigured: GITHUB_REPO not set", status="failed", errorMessage="GITHUB_REPO env var missing")
+        return 1
 
-    progress("Worker started - stub pipeline (Phase 1 architecture proof)")
-    time.sleep(2)
+    work_root = Path(tempfile.mkdtemp(prefix=f"truedemo-{args.job_id}-"))
 
-    if args.repo_url:
-        progress(f"Reading repository {args.repo_url}...")
-        time.sleep(2)
+    try:
+        progress(f"Exploring {args.url} with a real browser...")
+        action_log = explore(args.url, work_root / "screenshots")
+        progress(f"Explored {len(action_log.steps)} steps of the app")
 
-    progress(f"Exploring {args.url}...")
-    time.sleep(2)
+        repo_context = ""
+        if args.repo_url:
+            progress(f"Reading repository {args.repo_url} for technical grounding...")
+            repo_context = get_repo_context(args.repo_url)
+            if repo_context:
+                progress("Repository context extracted")
+            else:
+                progress("Could not read repository - narrating from UI exploration only")
 
-    progress("Writing narration script...")
-    time.sleep(2)
+        progress("Writing narration script grounded in real technical context...")
+        write_narration(action_log, repo_context)
 
-    progress(
-        "Stub pipeline complete - this is where the real video would be",
-        status="completed",
-        videoUrl="https://example.com/stub-video-not-real",
-    )
-    print("Done.")
-    return 0
+        progress("Synthesizing narration audio (Piper TTS)...")
+        synthesize_narration(action_log, work_root / "audio", work_root / "voices")
+
+        progress("Assembling video (ffmpeg)...")
+        video_path = assemble_video(action_log, work_root / "assembly", work_root / "final.mp4")
+
+        progress("Publishing video...")
+        video_url = publish_video(args.job_id, str(video_path), github_repo)
+
+        progress("Done - video ready", status="completed", videoUrl=video_url)
+        print("Done.")
+        return 0
+
+    except Exception as err:
+        print(f"[main] Job failed: {err}", file=sys.stderr)
+        progress(f"Job failed: {err}", status="failed", errorMessage=str(err))
+        return 1
 
 
 if __name__ == "__main__":

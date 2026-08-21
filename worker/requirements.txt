@@ -1,5 +1,10 @@
-# Phase 1: just enough to prove the architecture (dispatch -> runner ->
-# webhook progress updates) works end to end with a stub pipeline.
-# Playwright, TTS, and video assembly deps get added in Phase 2 once this
-# is verified.
 requests==2.32.3
+
+# Browser automation for the exploration agent
+playwright==1.62.0
+
+# Gemini free-tier LLM for repo-grounded narration
+google-genai==2.19.0
+
+# Local, zero-cost TTS - onnxruntime-based, no API key
+piper-tts==1.7.0
