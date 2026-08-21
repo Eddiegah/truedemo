@@ -52,8 +52,10 @@ export default function LandingPage() {
       <section className="mt-16 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
         <p>
           <span className="font-medium text-foreground">Honest status:</span> the generation
-          pipeline above is real and has been run end to end in production - not a mockup. What
-          isn&apos;t built yet: accounts, a saved video library, and sharing. See the{" "}
+          pipeline above is real and has been run end to end in production - not a mockup.
+          Accounts (GitHub sign-in) and a saved video library are live too. What&apos;s still
+          ahead: shareable public links for individual videos, and the rest of the visual polish.
+          See the{" "}
           <a
             href="https://github.com/Eddiegah/truedemo#verification"
             target="_blank"
@@ -68,7 +70,7 @@ export default function LandingPage() {
 
       <div className="mt-16 flex flex-col items-center gap-3 text-center">
         <Badge variant="outline" className="text-muted-foreground">
-          Free to try - no account required yet
+          Free to try - sign in with GitHub to get started
         </Badge>
         <Button size="lg" nativeButton={false} render={<Link href="/generate" />}>
           Generate a demo video →

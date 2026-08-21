@@ -7,10 +7,6 @@ datasource db {
   url      = env("DATABASE_URL")
 }
 
-// Phase 1: proves the architecture (dispatch -> GitHub Actions runner ->
-// webhook progress updates -> frontend polling) works end to end with a
-// stub pipeline. The real exploration/narration/video fields get added
-// once the actual agent exists - no point modeling data we can't produce yet.
 model Job {
   id           String   @id @default(cuid())
   url          String
@@ -21,4 +17,60 @@ model Job {
   errorMessage String?
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
+
+  // Nullable, not required: jobs created before auth existed (and any future
+  // anonymous/API-submitted jobs) have no owner. The video library only ever
+  // queries jobs where userId is set.
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId])
+}
+
+// Standard @auth/prisma-adapter schema (next-auth v5) for GitHub OAuth -
+// GitHub chosen as the provider because it's free, no card, and every user
+// of a dev tool like this already has an account.
+model User {
+  id            String    @id @default(cuid())
+  name          String?
+  email         String?   @unique
+  emailVerified DateTime?
+  image         String?
+  accounts      Account[]
+  sessions      Session[]
+  jobs          Job[]
+}
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String? @db.Text
+  access_token      String? @db.Text
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String? @db.Text
+  session_state     String?
+  user              User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerAccountId])
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
 }

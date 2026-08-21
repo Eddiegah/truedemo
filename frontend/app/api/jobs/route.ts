@@ -1,8 +1,14 @@
 import { NextRequest, NextResponse } from "next/server";
 import { prisma } from "@/lib/prisma";
 import { dispatchJob } from "@/lib/github";
+import { auth } from "@/auth";
 
 export async function POST(req: NextRequest) {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return NextResponse.json({ error: "Sign in to generate a demo video." }, { status: 401 });
+  }
+
   let body: { url?: string; repoUrl?: string };
   try {
     body = await req.json();
@@ -17,7 +23,13 @@ export async function POST(req: NextRequest) {
   const repoUrl = body.repoUrl?.trim() || null;
 
   const job = await prisma.job.create({
-    data: { url, repoUrl, status: "queued", progressLog: [{ stage: "Job created, dispatching worker...", at: new Date().toISOString() }] },
+    data: {
+      url,
+      repoUrl,
+      userId: session.user.id,
+      status: "queued",
+      progressLog: [{ stage: "Job created, dispatching worker...", at: new Date().toISOString() }],
+    },
   });
 
   try {

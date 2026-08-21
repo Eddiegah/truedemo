@@ -2,6 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
+import { useSession, signIn } from "next-auth/react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -49,6 +50,7 @@ const STATUS_STYLES: Record<Job["status"], string> = {
 };
 
 export default function GeneratePage() {
+  const { data: session, status } = useSession();
   const [url, setUrl] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -110,7 +112,7 @@ export default function GeneratePage() {
       >
         <Badge variant="outline" className="mb-2 gap-2 border-border text-muted-foreground">
           <span className="h-1.5 w-1.5 rounded-full bg-primary" />
-          Real pipeline live — UI polish, auth &amp; video library still ahead
+          Real pipeline live
         </Badge>
         <h1 className="mt-3 text-3xl font-bold tracking-tight">Generate a demo video</h1>
         <p className="mt-2 text-sm text-muted-foreground">
@@ -118,6 +120,17 @@ export default function GeneratePage() {
         </p>
       </motion.div>
 
+      {status === "loading" ? null : !session?.user ? (
+        <Card className="mt-8">
+          <CardContent className="flex flex-col items-center gap-3 py-8 text-center">
+            <p className="text-sm text-muted-foreground">
+              Sign in to generate a demo video - this keeps the free GitHub Actions pipeline from
+              being abused by anonymous requests.
+            </p>
+            <Button onClick={() => signIn("github")}>Sign in with GitHub</Button>
+          </CardContent>
+        </Card>
+      ) : (
       <Card className="mt-8">
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -153,6 +166,7 @@ export default function GeneratePage() {
           </form>
         </CardContent>
       </Card>
+      )}
 
       <AnimatePresence mode="wait">
         {job && (
