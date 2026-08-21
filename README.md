@@ -8,11 +8,11 @@
 
 ---
 
-## Current status: core pipeline is real and verified
+## Current status: pipeline, UI, and accounts are real and live
 
-The full pipeline is real, not a stub: a real headless browser explores the target app, the target repo is actually cloned and read for technical grounding, Gemini writes narration from that real context, Piper synthesizes it locally, ffmpeg assembles a captioned video, and it's published as a real GitHub Release asset - all triggered from the deployed frontend and verified against production, not localhost. See [Verification](#verification) for the actual run.
+The full pipeline is real, not a stub: a real headless browser explores the target app, the target repo is actually cloned and read for technical grounding, Gemini writes narration from that real context, Piper synthesizes it locally, ffmpeg assembles a captioned video, and it's published as a real GitHub Release asset. The frontend is a proper shadcn/ui design system (dark-mode-first, single emerald accent, Framer Motion micro-interactions, optimistic UI on submit) with a landing page whose proof section uses genuinely real generated narration, not mockup copy. Sign-in is real GitHub OAuth via next-auth, gating job creation both client- and server-side, and `/library` lists a signed-in user's real past jobs from Postgres.
 
-What's still ahead, honestly: the UI is functional Tailwind, not the polished shadcn/ui + Framer Motion design system the spec calls for; there's no auth or video library yet; and the landing page doesn't yet have the concrete side-by-side proof section the positioning below promises. See [Roadmap](#roadmap).
+What's still ahead, honestly: no shareable public links for individual videos yet, and the landing page's visual polish (imagery, deeper motion work) is still fairly minimal. See [Roadmap](#roadmap).
 
 ## Strategic positioning
 
@@ -50,12 +50,13 @@ Every step of this is real and has been run end to end against the deployed prod
 
 ## Roadmap
 
-Still ahead, not yet built: a landing page with the concrete side-by-side proof of the technical-accuracy claim, the full shadcn/ui design system + Framer Motion micro-interactions (the UI today is functional but plain Tailwind), auth via next-auth, and a video library/sharing view. The core generation pipeline itself is done and verified - what's left is presentation and accounts, not the hard technical part.
+Still ahead, not yet built: shareable public links for individual library videos, and further landing-page visual polish. Everything else from the original spec - the real pipeline, the shadcn/ui + Framer Motion design system, GitHub OAuth accounts, and the video library - is built and verified.
 
 ## Verification
 
 - [x] Architecture proof: job submission → GitHub Actions dispatch → webhook progress → Postgres → live dashboard polling, all against production URLs.
 - [x] Real pipeline: a real generated video, produced end to end from a real job submitted through the deployed frontend, published as a real GitHub Release asset.
+- [x] Auth: `GET /api/auth/providers` confirms GitHub OAuth is live with the correct callback URL; `POST /api/jobs` returns `401` without a session, confirming the server-side gate (not just a client-side UI hide) actually blocks anonymous job creation.
 
 **Real pipeline run**, against the live production deploy (`https://frontend-dun-chi-56.vercel.app`), target app `https://playwright.dev`, grounded against this repo:
 
@@ -75,6 +76,8 @@ Real bugs found and fixed only by testing against the real infrastructure, not g
 - **`piper-tts` 1.7.0's API differs from older docs/examples.** `PiperVoice.synthesize()` now returns a generator of `AudioChunk` objects (with their own sample rate/width/channel metadata) rather than writing directly into a wave file. Fixed by reading the installed package's actual source instead of trusting an older example.
 
 One earlier hiccup, from the Phase 1 architecture proof: the first `prisma db push` against Neon failed with `P1001: Can't reach database server` - a TCP check confirmed port 5432 was reachable, so this was Neon's compute waking from idle (cold start), not a real connectivity problem. Retrying immediately succeeded.
+
+Two smaller bugs from the UI pass, also worth naming rather than glossing over: shadcn's own `init` scaffolds a `--font-sans: var(--font-sans)` CSS variable in `globals.css` - a self-reference that never resolves, silently falling back to Arial instead of ever rendering the intended Geist font (fixed by pointing it at the actual `--font-geist-sans` variable set in `layout.tsx`); and this shadcn version's `Button` is built on Base UI, which expects a real `<button>` unless told otherwise, so using it to render a `next/link` needed `nativeButton={false}` or it logged a runtime accessibility warning about losing native button semantics.
 
 ## Setup
 
