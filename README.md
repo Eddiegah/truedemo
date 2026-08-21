@@ -1,118 +1,177 @@
 <div align="center">
 
+<img src="https://frontend-dun-chi-56.vercel.app/opengraph-image" alt="TrueDemo" width="100%" />
+
 # TrueDemo
 
 **The only demo video tool that actually understands your code.**
+
+Every other tool guesses what your product does from its UI.
+TrueDemo reads your actual source and gets it right.
+
+[![Live demo](https://img.shields.io/badge/▶_Launch_TrueDemo-10b981?style=for-the-badge)](https://frontend-dun-chi-56.vercel.app)
+
+[![Process Job](https://github.com/Eddiegah/truedemo/actions/workflows/process-job.yml/badge.svg)](https://github.com/Eddiegah/truedemo/actions/workflows/process-job.yml)
+[![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5-3178C6?logo=typescript&logoColor=white)](https://www.typescriptlang.org)
+[![Python](https://img.shields.io/badge/Python-3.11-3776AB?logo=python&logoColor=white)](https://www.python.org)
+[![Playwright](https://img.shields.io/badge/Playwright-automation-2EAD33?logo=playwright&logoColor=white)](https://playwright.dev)
+[![Gemini](https://img.shields.io/badge/Gemini-narration-8E75B2?logo=googlegemini&logoColor=white)](https://ai.google.dev)
+[![Deployed on Vercel](https://img.shields.io/badge/Deployed%20on-Vercel-black?logo=vercel&logoColor=white)](https://vercel.com)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](#license)
 
 </div>
 
 ---
 
-## Current status: pipeline, UI, and accounts are real and live
+## What it does
 
-The full pipeline is real, not a stub: a real headless browser explores the target app, the target repo is actually cloned and read for technical grounding, Gemini writes narration from that real context, Piper synthesizes it locally, ffmpeg assembles a captioned video, and it's published as a real GitHub Release asset. The frontend is a proper shadcn/ui design system (dark-mode-first, single emerald accent, Framer Motion micro-interactions, optimistic UI on submit) with a landing page whose proof section uses genuinely real generated narration, not mockup copy. Sign-in is real GitHub OAuth via next-auth, gating job creation both client- and server-side, and `/library` lists a signed-in user's real past jobs from Postgres.
+Paste a live app URL and, optionally, its GitHub repo. An autonomous agent:
 
-What's still ahead, honestly: no shareable public links for individual videos yet, and the landing page's visual polish (imagery, deeper motion work) is still fairly minimal. See [Roadmap](#roadmap).
+1. **Explores** your app in a real headless browser - clicking through it like a person would, not just screenshotting the homepage.
+2. **Reads your actual code** - clones the repo, parses dependency manifests, README, and file structure.
+3. **Writes narration grounded in what it found** - via Gemini, referencing your real stack instead of generic "streamline your workflow" copy.
+4. **Voices, assembles, and publishes** a captioned demo video - fully autonomously, with zero manual editing.
 
-## Strategic positioning
+The result is a demo video that sounds like someone who actually read your code made it - because something did.
 
-The AI demo-video space already has funded competitors doing autonomous URL-to-video generation (Demosmith, MakeMyDemo, RepoClip, Creatify, and others). TrueDemo's wedge: **every other tool guesses what your product does from its UI; TrueDemo reads your actual code and gets it right.** The plan for proving this isn't just claiming it in marketing copy - it's showing, in the product itself, specific technical details the narration pulled from the real repo, so a visitor can verify the claim rather than take it on faith. That's Phase 2+ work; noted here so the positioning is on record from day one.
+## Everything below is real, not aspirational
+
+This isn't a landing page for a product that half-exists. The pipeline, the UI, and accounts have all been run end to end against the live, deployed production URL - not localhost, not a demo recording. See **[Verification](#verification)** for the actual runs, including the real bugs that came up and how they were fixed.
+
+## Features
+
+- 🧭 **Autonomous exploration** - Playwright drives a real browser, same-origin only, loop-safe, bounded steps.
+- 📖 **Code-grounded narration** - your repo's README, manifests, and file tree feed directly into the script.
+- 🗣️ **Local TTS** - Piper synthesizes narration with zero API cost (and the voice-quality tradeoff is stated plainly, not hidden).
+- 🎬 **Automatic video assembly** - ffmpeg burns in captions and muxes audio into a finished mp4, no editing required.
+- 🔐 **GitHub sign-in** - real OAuth via next-auth, gating generation both client- and server-side.
+- 📼 **Video library** - every video you generate is saved to your account.
+- ⚡ **Fast, animated UI** - shadcn/ui + Framer Motion, dark-mode-first, optimistic updates, live status polling.
+- 💸 **Genuinely free to run** - the entire stack (see [Architecture](#architecture)) runs on free tiers, no card required anywhere.
 
 ## Architecture
 
-Two real, separately-deployed services - and the reasoning behind each choice, including one deliberate, honest departure from the original spec:
+Two real, separately-deployed services - built under a hard no-paid-services constraint, with the reasoning behind each substitution stated plainly:
 
 | Piece | Choice | Why |
 |---|---|---|
-| Frontend | Next.js (App Router), Vercel | Free hobby tier, no card, fast edge delivery for the dashboard and marketing site. |
-| Worker / job execution | **GitHub Actions**, not Fly.io | The original spec called for a persistent container on Fly.io. Fly.io no longer has a meaningful free tier (new accounts get a 2-hour trial, then require a card) - and this project is built under a hard no-paid-services constraint. GitHub Actions runs on a public repo for free, unlimited minutes, and can genuinely run Playwright (browser install included) and ffmpeg. The real tradeoff, stated plainly: jobs queue through GitHub's own runner scheduling rather than a warm, always-on process, so there's a ~10-30s startup delay before a job actually begins. For a demo-generation tool (not a low-latency API), that's a reasonable trade for zero cost. |
-| Job queue | GitHub Actions' own dispatch/scheduling | No Redis/Upstash. The queue's whole purpose in the original spec was handing work from a lightweight frontend to a persistent worker - if the "worker" *is* a GitHub Actions run triggered directly via the API, a separate queue is redundant infrastructure with no job it's actually doing here. |
-| Database | **Neon Postgres**, not "Vercel Postgres" | Free tier, no card, doesn't expire - the same proven pattern already used in another project this session. "Vercel Postgres" is Neon under the hood anyway; using Neon directly avoids any ambiguity about which billing tier applies. |
-| Real-time updates | Polling (2.5s interval), not WebSockets | Vercel serverless functions can't hold a persistent WebSocket connection open without a separate paid real-time service (Pusher/Ably, etc.). Polling a lightweight status endpoint is free, simple, and - at this job frequency - genuinely indistinguishable from push in practice. |
-| Narration TTS | Piper (open-source, runs locally in the Actions runner) | Zero API cost, no card. Honest tradeoff: voice quality is noticeably more robotic than a paid API like ElevenLabs - stated plainly here, not glossed over. |
-| LLM | Gemini free tier | Model selection tries `gemini-flash-latest` (Google's own version-drift-proof alias) first, with pinned fallbacks and a short retry for transient 503 "high demand" responses - both failure modes were hit for real during testing, not hypothetical. |
+| Frontend | Next.js (App Router), Vercel | Free hobby tier, no card, fast edge delivery. |
+| Worker / job execution | **GitHub Actions**, not Fly.io | Fly.io no longer has a meaningful free tier. GitHub Actions runs unlimited minutes on a public repo and can genuinely run Playwright and ffmpeg. Tradeoff: ~10-30s startup delay vs. a warm process - a reasonable trade for zero cost on a demo-generation tool. |
+| Job queue | GitHub Actions' own dispatch/scheduling | No Redis/Upstash - the "worker" *is* a GitHub Actions run, so a separate queue would be redundant infrastructure. |
+| Database | **Neon Postgres** | Free tier, no card, doesn't expire. |
+| Real-time updates | Polling (2.5s interval) | Vercel serverless can't hold WebSockets open without a paid real-time service; at this job frequency, polling is indistinguishable from push. |
+| Narration TTS | Piper (runs locally in the Actions runner) | Zero cost. Voice quality is noticeably more robotic than a paid API like ElevenLabs - stated here, not glossed over. |
+| LLM | Gemini free tier | Model selection tries `gemini-flash-latest` first with pinned fallbacks and retry-on-503, since the free-tier model lineup moved mid-build. |
 | Video hosting | GitHub Releases | Free, no card, sufficient for demo-scale video files. |
+| Auth | next-auth + GitHub OAuth | Free, no card, and every likely user already has a GitHub account. |
 
-### How a job actually flows right now
+### How a job actually flows
 
-1. Browser submits a URL (+ optional repo) to `POST /api/jobs`.
-2. That creates a `Job` row in Neon Postgres (`status: queued`) and calls the GitHub API to trigger `workflow_dispatch` on `.github/workflows/process-job.yml`, passing the job id, URL, and repo URL as inputs.
-3. A GitHub Actions runner picks up the job (this is the real queueing step - no code of ours manages it), checks out the repo, installs ffmpeg/Python deps/the Playwright browser, and runs `worker/src/main.py`.
-4. `agent.py` drives a real headless Chromium around the target app (bounded to 6 steps, same-origin only, loop-safe) and screenshots each step.
-5. `repo_context.py` shallow-clones the target repo (if given) and extracts its README, dependency manifests, and file tree - including manifests in monorepo subdirectories, not just the root.
-6. `script_writer.py` sends that real action log + repo context to Gemini, which writes narration grounded in what the app actually is, not generic marketing language.
-7. `narration.py` synthesizes each line locally with Piper TTS.
-8. `video_assembly.py` burns captions onto each screenshot, muxes in its narration audio via ffmpeg, and concatenates all clips into one video.
-9. `video_release.py` publishes it as a GitHub Release asset and returns the public download URL.
-10. Every stage POSTs progress to `POST /api/jobs/[id]/progress` (shared-secret auth, since the caller is a CI runner, not a browser session), which the dashboard polls every 2.5s.
-
-Every step of this is real and has been run end to end against the deployed production URLs, not just localhost - see [Verification](#verification).
-
-## Roadmap
-
-Still ahead, not yet built: shareable public links for individual library videos, and further landing-page visual polish. Everything else from the original spec - the real pipeline, the shadcn/ui + Framer Motion design system, GitHub OAuth accounts, and the video library - is built and verified.
+```
+Browser → POST /api/jobs → Job row in Postgres + workflow_dispatch triggered
+                                          │
+                                          ▼
+                    GitHub Actions runner picks up the job
+                                          │
+              ┌───────────────┬──────────┼──────────┬───────────────┐
+              ▼               ▼          ▼          ▼               ▼
+          agent.py      repo_context.py  script_writer.py  narration.py  video_assembly.py
+        (Playwright)      (git clone)      (Gemini)         (Piper)        (ffmpeg)
+              │               │               │                │               │
+              └───────────────┴───────────────┴────────────────┴───────────────┘
+                                          │
+                                          ▼
+                           video_release.py → GitHub Release asset
+                                          │
+                                          ▼
+              Every stage POSTs progress → dashboard polls every 2.5s
+```
 
 ## Verification
 
-- [x] Architecture proof: job submission → GitHub Actions dispatch → webhook progress → Postgres → live dashboard polling, all against production URLs.
-- [x] Real pipeline: a real generated video, produced end to end from a real job submitted through the deployed frontend, published as a real GitHub Release asset.
-- [x] Auth: `GET /api/auth/providers` confirms GitHub OAuth is live with the correct callback URL; `POST /api/jobs` returns `401` without a session, confirming the server-side gate (not just a client-side UI hide) actually blocks anonymous job creation.
+Real runs against the live production deploy, not localhost - screenshots, logs, and exact evidence in the commit history:
 
-**Real pipeline run**, against the live production deploy (`https://frontend-dun-chi-56.vercel.app`), target app `https://playwright.dev`, grounded against this repo:
+- ✅ **Architecture**: job submission → GitHub Actions dispatch → webhook progress → Postgres → live dashboard polling.
+- ✅ **Full pipeline**: a real 47.6s, 1280×800 h264/aac video, generated end to end from a real job, downloaded and verified with `ffprobe` - not just an HTTP 200 check. Published as a real GitHub Release: [`demo-cmt3d2ofo0000ji04ouwcrcth`](https://github.com/Eddiegah/truedemo/releases/tag/demo-cmt3d2ofo0000ji04ouwcrcth).
+- ✅ **Auth**: `GET /api/auth/providers` confirms GitHub OAuth is live; `POST /api/jobs` returns `401` without a session, confirming the *server-side* gate actually blocks anonymous requests, not just a hidden UI element.
 
-1. Submitted via `POST /api/jobs` - created a real `Job` row and dispatched a real GitHub Actions run.
-2. `agent.py` explored the live app with a real headless browser and completed 7 steps.
-3. `repo_context.py` cloned this repo and extracted real context (manifests, README, file tree).
-4. `script_writer.py` got real narration back from Gemini, grounded in that context.
-5. `narration.py` synthesized real audio for every line with Piper.
-6. `video_assembly.py` produced a real 47.6s, 1280×800 h264/aac mp4 with burned-in captions.
-7. `video_release.py` published it to a real GitHub Release: `Eddiegah/truedemo` release `demo-cmt3d2ofo0000ji04ouwcrcth`.
-8. The dashboard's own 2.5s poll loop reflected every stage live, ending in `completed` with a working video link - confirmed by downloading the actual file and inspecting it with `ffprobe`, not just checking the HTTP status.
+<details>
+<summary><b>Real bugs found and fixed by testing against real infrastructure (click to expand)</b></summary>
 
-Real bugs found and fixed only by testing against the real infrastructure, not glossed over:
+<br>
 
-- **ffmpeg's `pad` filter doesn't take `scale`'s `WxH` shorthand.** `pad=1280x800:(ow-iw)/2:(oh-ih)/2` parsed `"1280x800"` as a single width expression and failed with `Invalid chars 'x800'` - silently, at first, because `subprocess.run(capture_output=True)` was dropping ffmpeg's actual stderr. Fixed both: `_run_ffmpeg()` now surfaces the real ffmpeg error, and `pad` gets `width:height` as separate arguments. Only caught by reproducing the exact failing command locally with a real ffmpeg binary and real input files, not by reasoning about the exit code alone.
-- **Gemini's free-tier model lineup moved during this build.** `gemini-2.5-flash` (the initial pick) now 404s for new users with the API pointing at `gemini-3.6-flash` in its own error message; separately, `gemini-flash-latest` (Google's stable alias, meant to be immune to exactly this) returned a transient `503 high demand`. Fixed by trying `gemini-flash-latest` first with a couple of retries on 503 specifically, then pinned fallbacks - both paths were exercised for real, not just written defensively and hoped to work.
-- **`piper-tts` 1.7.0's API differs from older docs/examples.** `PiperVoice.synthesize()` now returns a generator of `AudioChunk` objects (with their own sample rate/width/channel metadata) rather than writing directly into a wave file. Fixed by reading the installed package's actual source instead of trusting an older example.
+- **ffmpeg's `pad` filter doesn't take `scale`'s `WxH` shorthand.** `pad=1280x800:...` parsed `"1280x800"` as a single width expression and failed - silently at first, because `subprocess.run(capture_output=True)` was dropping ffmpeg's actual stderr. Fixed both the logging and the filter syntax; only caught by reproducing the exact failing command locally with a real ffmpeg binary.
+- **Gemini's free-tier model lineup moved mid-build.** The initial model 404'd for new users, and even the "stable" alias hit a transient `503 high demand`. Fixed with a smarter fallback chain and a retry specifically for capacity errors.
+- **`piper-tts` 1.7.0's API differs from older docs.** `synthesize()` now returns a generator of audio chunks, not a direct wave-file writer. Fixed by reading the installed package's actual source.
+- **shadcn's own `init` scaffolds a self-referencing `--font-sans` CSS variable** that never resolves, silently falling back to Arial instead of the intended Geist font.
+- **Base UI's `Button` expects a real `<button>`** unless told otherwise - using it to render a `next/link` needed `nativeButton={false}`.
+- One earlier hiccup: the first `prisma db push` against Neon failed with `P1001` - a TCP check confirmed the port was reachable, so this was Neon's compute waking from idle, not a real connectivity problem. Retrying immediately succeeded.
 
-One earlier hiccup, from the Phase 1 architecture proof: the first `prisma db push` against Neon failed with `P1001: Can't reach database server` - a TCP check confirmed port 5432 was reachable, so this was Neon's compute waking from idle (cold start), not a real connectivity problem. Retrying immediately succeeded.
+</details>
 
-Two smaller bugs from the UI pass, also worth naming rather than glossing over: shadcn's own `init` scaffolds a `--font-sans: var(--font-sans)` CSS variable in `globals.css` - a self-reference that never resolves, silently falling back to Arial instead of ever rendering the intended Geist font (fixed by pointing it at the actual `--font-geist-sans` variable set in `layout.tsx`); and this shadcn version's `Button` is built on Base UI, which expects a real `<button>` unless told otherwise, so using it to render a `next/link` needed `nativeButton={false}` or it logged a runtime accessibility warning about losing native button semantics.
-
-## Setup
-
-### Frontend
+## Getting started
 
 ```bash
-cd frontend
+git clone https://github.com/Eddiegah/truedemo.git
+cd truedemo/frontend
 npm install
-cp .env.example .env.local   # fill in DATABASE_URL, GH_DISPATCH_TOKEN, WEBHOOK_SECRET
+cp .env.example .env.local   # see below for what each var needs
 npx prisma db push
 npm run dev
 ```
 
-### Worker
+<details>
+<summary><b>Environment variables</b></summary>
 
-The worker only runs inside GitHub Actions (`.github/workflows/process-job.yml`) - it's not meant to be run as a standalone service. To test it locally:
+<br>
+
+**Frontend** (`.env.local`):
+
+| Variable | Where to get it |
+|---|---|
+| `DATABASE_URL` | Free Postgres connection string from [neon.tech](https://neon.tech) |
+| `GH_DISPATCH_TOKEN` | Fine-grained GitHub PAT with `Actions: write` on this repo |
+| `GITHUB_REPO` | `your-username/truedemo` |
+| `WEBHOOK_SECRET` | Any long random string - must match the GitHub Actions secret below |
+| `AUTH_SECRET` | `openssl rand -base64 32` |
+| `AUTH_GITHUB_ID` / `AUTH_GITHUB_SECRET` | From a [GitHub OAuth App](https://github.com/settings/developers) |
+
+**GitHub Actions secrets** (repo Settings → Secrets and variables → Actions):
+
+| Secret | Value |
+|---|---|
+| `WEBHOOK_URL` | Your deployed frontend's base URL |
+| `WEBHOOK_SECRET` | Same value as the frontend's |
+| `GEMINI_API_KEY` | Free tier from [aistudio.google.com/apikey](https://aistudio.google.com/apikey) |
+
+`GITHUB_TOKEN` and `GITHUB_REPO` inside the workflow need no setup - GitHub Actions provides them automatically.
+
+</details>
+
+<details>
+<summary><b>Running the worker locally</b></summary>
+
+<br>
+
+The worker normally only runs inside GitHub Actions. To test it standalone:
 
 ```bash
 cd worker
-python -m venv venv && venv/Scripts/activate   # or source venv/bin/activate on macOS/Linux
+python -m venv venv && venv/Scripts/activate   # source venv/bin/activate on macOS/Linux
 pip install -r requirements.txt
-python src/main.py --job-id test --url https://example.com --webhook-url http://localhost:3000 --webhook-secret <your WEBHOOK_SECRET>
+python src/main.py --job-id test --url https://example.com \
+  --webhook-url http://localhost:3000 --webhook-secret <your WEBHOOK_SECRET>
 ```
 
-Requires the frontend running locally (`npm run dev` in `frontend/`) so the webhook calls have somewhere to land.
+Requires the frontend running locally so the webhook calls land somewhere.
 
-### GitHub Actions secrets
+</details>
 
-On the repo (Settings → Secrets and variables → Actions), set:
-- `WEBHOOK_URL` - the deployed frontend's base URL
-- `WEBHOOK_SECRET` - must match the frontend's `WEBHOOK_SECRET` env var exactly
-- `GEMINI_API_KEY` - from [aistudio.google.com/apikey](https://aistudio.google.com/apikey), free tier
+## Roadmap
 
-`GITHUB_TOKEN` (for publishing the finished video as a Release asset) and `GITHUB_REPO` need no setup - the workflow gets them automatically from GitHub Actions' own built-in context.
+Still ahead: shareable public links for individual library videos, and further landing-page visual polish. Everything else from the original spec - the real generation pipeline, the shadcn/ui + Framer Motion design system, GitHub OAuth accounts, and the video library - is built and verified.
 
 ## License
 
-MIT
+MIT © Edmund Eric Gah
