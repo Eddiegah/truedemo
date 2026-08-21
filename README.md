@@ -41,10 +41,11 @@ This isn't a landing page for a product that half-exists. The pipeline, the UI, 
 
 ## Features
 
-- 🧭 **Autonomous exploration** - Playwright drives a real browser, same-origin only, loop-safe, bounded steps.
+- 🧭 **Autonomous exploration** - Playwright drives a real browser, same-origin only, loop-safe, bounded steps. Recovers to the last known-good page if a link turns out broken, instead of silently cutting the rest of the exploration short.
+- ⌨️ **Real feature interaction, not just navigation** - the agent types into real search/text inputs and tries submitting them, prioritized over plain link-clicking, so the video shows a feature actually working.
 - 📖 **Code-grounded narration** - your repo's README, manifests, and file tree feed directly into the script.
 - 🗣️ **Local TTS** - Piper synthesizes narration with zero API cost (and the voice-quality tradeoff is stated plainly, not hidden).
-- 🎬 **Automatic video assembly** - ffmpeg burns in captions and muxes audio into a finished mp4, no editing required.
+- 🎬 **Smooth, scored video assembly** - ffmpeg crossfades between clips instead of hard-cutting, burns in captions, and mixes in a soft procedurally-generated ambient music bed underneath - audible on its own during the brief pause after each line, not just a backing track.
 - 🔐 **GitHub sign-in** - real OAuth via next-auth, gating generation both client- and server-side.
 - 📼 **Video library** - every video you generate is saved to your account.
 - ⚡ **Fast, animated UI** - shadcn/ui + Framer Motion, dark-mode-first, optimistic updates, live status polling.
@@ -74,12 +75,12 @@ Browser → POST /api/jobs → Job row in Postgres + workflow_dispatch triggered
                                           ▼
                     GitHub Actions runner picks up the job
                                           │
-              ┌───────────────┬──────────┼──────────┬───────────────┐
-              ▼               ▼          ▼          ▼               ▼
-          agent.py      repo_context.py  script_writer.py  narration.py  video_assembly.py
-        (Playwright)      (git clone)      (Gemini)         (Piper)        (ffmpeg)
-              │               │               │                │               │
-              └───────────────┴───────────────┴────────────────┴───────────────┘
+        ┌──────────────┬──────────────┼──────────────┬──────────────┬──────────────┐
+        ▼              ▼              ▼              ▼              ▼              ▼
+    agent.py     repo_context.py script_writer.py narration.py  music.py    video_assembly.py
+  (explore + fill)  (git clone)      (Gemini)         (Piper)   (ambient bed)  (crossfade + mix)
+        │              │              │              │              │              │
+        └──────────────┴──────────────┴──────────────┴──────────────┴──────────────┘
                                           │
                                           ▼
                            video_release.py → GitHub Release asset
@@ -95,6 +96,7 @@ Real runs against the live production deploy, not localhost - screenshots, logs,
 - ✅ **Architecture**: job submission → GitHub Actions dispatch → webhook progress → Postgres → live dashboard polling.
 - ✅ **Full pipeline**: a real 47.6s, 1280×800 h264/aac video, generated end to end from a real job, downloaded and verified with `ffprobe` - not just an HTTP 200 check. Published as a real GitHub Release: [`demo-cmt3d2ofo0000ji04ouwcrcth`](https://github.com/Eddiegah/truedemo/releases/tag/demo-cmt3d2ofo0000ji04ouwcrcth).
 - ✅ **Auth**: `GET /api/auth/providers` confirms GitHub OAuth is live; `POST /api/jobs` returns `401` without a session, confirming the *server-side* gate actually blocks anonymous requests, not just a hidden UI element.
+- ✅ **Crossfade + music + feature interaction**: a real production run against `playwright.dev`, dispatched directly via `workflow_dispatch` - 8 real exploration steps (including recovering from one intentionally-broken navigation), a real narrated/crossfaded/scored 46.6s video, confirmed non-silent with `ffmpeg`'s `volumedetect` (mean -23.3dB, max -6.3dB - real signal, not a silent track), not just checked for existing.
 
 <details>
 <summary><b>Real bugs found and fixed by testing against real infrastructure (click to expand)</b></summary>
@@ -107,6 +109,7 @@ Real runs against the live production deploy, not localhost - screenshots, logs,
 - **shadcn's own `init` scaffolds a self-referencing `--font-sans` CSS variable** that never resolves, silently falling back to Arial instead of the intended Geist font.
 - **Base UI's `Button` expects a real `<button>`** unless told otherwise - using it to render a `next/link` needed `nativeButton={false}`.
 - One earlier hiccup: the first `prisma db push` against Neon failed with `P1001` - a TCP check confirmed the port was reachable, so this was Neon's compute waking from idle, not a real connectivity problem. Retrying immediately succeeded.
+- **A failed `page.goto()` silently empties the page's DOM**, even though `page.url` still reports the old address unchanged. Confirmed directly: 2 real elements found before a deliberately-broken navigation, 0 found after, `page.url` identical both times. Before this was caught, one bad link would silently truncate the rest of an exploration run - every later candidate search on the now-empty page found nothing, and the loop just ended early with far fewer steps than the app actually offered. Fixed by tracking the last known-good URL and reloading it after any failed action.
 
 </details>
 
