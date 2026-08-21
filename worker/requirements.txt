@@ -8,3 +8,8 @@ google-genai==2.19.0
 
 # Local, zero-cost TTS - onnxruntime-based, no API key
 piper-tts==1.7.0
+
+# Ambient background music synthesis (music.py) - already pulled in
+# transitively by piper-tts/onnxruntime, but pinned explicitly since the
+# pipeline now depends on it directly, not just through TTS.
+numpy==2.4.6

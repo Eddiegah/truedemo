@@ -1,21 +1,38 @@
 """
 Combines each step's screenshot + narration audio into a captioned video
-clip, then concatenates all clips into the final demo video - via ffmpeg
+clip, crossfades all clips together into one continuous video (rather
+than hard-cutting between them), and mixes in a soft ambient music bed
+underneath - audible on its own during the brief pauses each clip carries
+after its narration ends, not just as a backing track. All via ffmpeg
 (preinstalled on GitHub Actions' ubuntu-latest runners, no extra install
 needed). Captions are burned in from a text file (drawtext's textfile=
 option) rather than an inline string, specifically to avoid having to
 escape LLM-generated narration text against ffmpeg's filtergraph syntax.
 """
+import json
 import shutil
 import subprocess
 from pathlib import Path
 
 from action_log import ActionLog
+from music import generate_ambient_bed
 
 WIDTH, HEIGHT = 1280, 800
 RESOLUTION = f"{WIDTH}x{HEIGHT}"
 CLIP_TIMEOUT_SECONDS = 60
-CONCAT_TIMEOUT_SECONDS = 60
+ASSEMBLY_TIMEOUT_SECONDS = 180
+
+# How long each clip holds its frame in silence after narration ends -
+# gives crossfades room to breathe and gives the background music a
+# moment to actually be heard on its own, not just as a bed under speech.
+TRAILING_PAD_SECONDS = 0.6
+
+# Crossfade length between consecutive clips. Clamped per-video against the
+# shortest clip's duration (see _safe_xfade_duration) - a clip shorter than
+# this would make ffmpeg's xfade/acrossfade filters misbehave or error.
+XFADE_DURATION = 0.6
+
+MUSIC_VOLUME_DB = -22  # subtle bed, narration stays clearly in front
 
 # Common on GitHub's ubuntu-latest images (fonts-dejavu-core is preinstalled).
 # If it's missing, captions are skipped rather than failing the whole video -
@@ -46,6 +63,17 @@ def _run_ffmpeg(cmd: list[str], timeout: int) -> None:
         ) from err
 
 
+def _probe_duration(path: Path) -> float:
+    result = subprocess.run(
+        ["ffprobe", "-v", "error", "-show_entries", "format=duration", "-of", "json", str(path)],
+        check=True,
+        capture_output=True,
+        text=True,
+        timeout=15,
+    )
+    return float(json.loads(result.stdout)["format"]["duration"])
+
+
 def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | None, out_path: Path) -> None:
     vf_parts = [f"scale={RESOLUTION}:force_original_aspect_ratio=decrease,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2"]
     if font:
@@ -59,6 +87,7 @@ def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | Non
         "-loop", "1", "-i", screenshot,
         "-i", audio,
         "-vf", ",".join(vf_parts),
+        "-af", f"apad=pad_dur={TRAILING_PAD_SECONDS}",
         "-c:v", "libx264", "-tune", "stillimage", "-pix_fmt", "yuv420p",
         "-c:a", "aac", "-b:a", "192k",
         "-shortest",
@@ -67,10 +96,74 @@ def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | Non
     _run_ffmpeg(cmd, CLIP_TIMEOUT_SECONDS)
 
 
+def _safe_xfade_duration(durations: list[float]) -> float:
+    """Clamped below the shortest clip's length - acrossfade/xfade need
+    both sides of a transition to actually be at least that long."""
+    return min(XFADE_DURATION, min(durations) * 0.4)
+
+
+def _crossfade_chain(clip_paths: list[Path], durations: list[float], out_path: Path) -> None:
+    """Dissolves all clips into one continuous track instead of hard-cutting
+    between them - xfade for video, acrossfade for audio, chained across
+    however many clips there are."""
+    if len(clip_paths) == 1:
+        shutil.copy(clip_paths[0], out_path)
+        return
+
+    xfade_dur = _safe_xfade_duration(durations)
+    inputs: list[str] = []
+    for p in clip_paths:
+        inputs += ["-i", str(p)]
+
+    v_filters = []
+    a_filters = []
+    v_label, a_label = "0:v", "0:a"
+    merged_duration = durations[0]
+
+    for i in range(1, len(clip_paths)):
+        offset = merged_duration - xfade_dur
+        next_v, next_a = f"v{i}", f"a{i}"
+        v_filters.append(
+            f"[{v_label}][{i}:v]xfade=transition=fade:duration={xfade_dur:.3f}:offset={offset:.3f}[{next_v}]"
+        )
+        a_filters.append(f"[{a_label}][{i}:a]acrossfade=d={xfade_dur:.3f}[{next_a}]")
+        v_label, a_label = next_v, next_a
+        merged_duration = merged_duration + durations[i] - xfade_dur
+
+    cmd = [
+        "ffmpeg", "-y",
+        *inputs,
+        "-filter_complex", ";".join(v_filters + a_filters),
+        "-map", f"[{v_label}]", "-map", f"[{a_label}]",
+        "-c:v", "libx264", "-pix_fmt", "yuv420p",
+        "-c:a", "aac", "-b:a", "192k",
+        str(out_path),
+    ]
+    _run_ffmpeg(cmd, ASSEMBLY_TIMEOUT_SECONDS)
+
+
+def _mix_background_music(narrated_path: Path, work_dir: Path, output_path: Path) -> None:
+    duration = _probe_duration(narrated_path)
+    music_path = generate_ambient_bed(work_dir / "music.wav", duration)
+
+    cmd = [
+        "ffmpeg", "-y",
+        "-i", str(narrated_path),
+        "-i", str(music_path),
+        "-filter_complex",
+        f"[1:a]volume={MUSIC_VOLUME_DB}dB[music];"
+        f"[0:a][music]amix=inputs=2:duration=first:dropout_transition=2[aout]",
+        "-map", "0:v", "-map", "[aout]",
+        "-c:v", "copy", "-c:a", "aac", "-b:a", "192k",
+        str(output_path),
+    ]
+    _run_ffmpeg(cmd, ASSEMBLY_TIMEOUT_SECONDS)
+
+
 def assemble_video(action_log: ActionLog, work_dir: Path, output_path: Path) -> Path:
     work_dir.mkdir(parents=True, exist_ok=True)
     font = _find_font()
-    clip_paths = []
+    clip_paths: list[Path] = []
 
     for step in action_log.steps:
         if not step.audio_path:
@@ -85,16 +178,12 @@ def assemble_video(action_log: ActionLog, work_dir: Path, output_path: Path) -> 
     if not clip_paths:
         raise RuntimeError("No narrated steps to assemble into a video.")
 
-    concat_list = work_dir / "concat_list.txt"
-    concat_list.write_text(
-        "\n".join(f"file '{p.resolve().as_posix()}'" for p in clip_paths), encoding="utf-8"
-    )
+    durations = [_probe_duration(p) for p in clip_paths]
 
     output_path.parent.mkdir(parents=True, exist_ok=True)
-    _run_ffmpeg(
-        ["ffmpeg", "-y", "-f", "concat", "-safe", "0", "-i", str(concat_list), "-c", "copy", str(output_path)],
-        CONCAT_TIMEOUT_SECONDS,
-    )
+    narrated_path = work_dir / "narrated.mp4"
+    _crossfade_chain(clip_paths, durations, narrated_path)
+    _mix_background_music(narrated_path, work_dir, output_path)
 
     shutil.rmtree(work_dir, ignore_errors=True)
     return output_path
