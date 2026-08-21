@@ -8,7 +8,6 @@ escape LLM-generated narration text against ffmpeg's filtergraph syntax.
 """
 import shutil
 import subprocess
-import wave
 from pathlib import Path
 
 from action_log import ActionLog
@@ -24,11 +23,6 @@ FONT_CANDIDATES = [
     "/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
     "/usr/share/fonts/truetype/liberation/LiberationSans-Bold.ttf",
 ]
-
-
-def _wav_duration_seconds(wav_path: str) -> float:
-    with wave.open(wav_path, "rb") as wf:
-        return wf.getnframes() / wf.getframerate()
 
 
 def _find_font() -> str | None:

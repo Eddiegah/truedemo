@@ -5,21 +5,30 @@ workflow" marketing language. This is where TrueDemo's whole claim gets
 either proven or exposed as empty: the output should visibly reference
 real dependencies/files from the repo, not just describe what's on screen.
 
-Model selection is intentionally dynamic (list models, pick a Flash
-variant) rather than a hardcoded version string - Gemini's free-tier
-model lineup has moved fast enough in 2026 that pinning one name risks
-a 404 the day it's deprecated. A short hardcoded fallback list covers
-the case where listing itself fails.
+Model selection tries `gemini-flash-latest` first - Google's own alias
+for "whatever flash model is currently recommended," immune to version
+drift by design - then a couple of hardcoded, verified-working pins as
+backup. Earlier this used `client.models.list()` to auto-pick a model,
+but that list includes deprecated-for-new-users models with no signal
+distinguishing them from live ones (confirmed directly: it returned
+`gemini-2.5-flash` first, which 404s with "no longer available to new
+users, use gemini-3.6-flash instead" - the API's own error message
+names the fix). A transient 503 ("high demand") is retried a couple of
+times before moving to the next model, since on the free tier that's
+usually just momentary capacity, not a dead model.
 """
 import json
 import os
+import time
 
 from google import genai
 from google.genai import types
 
 from action_log import ActionLog
 
-FALLBACK_MODELS = ["gemini-2.5-flash", "gemini-2.0-flash", "gemini-flash-latest"]
+FALLBACK_MODELS = ["gemini-flash-latest", "gemini-3.6-flash", "gemini-2.5-flash"]
+MAX_RETRIES_PER_MODEL = 2
+RETRY_DELAY_SECONDS = 3
 
 SYSTEM_INSTRUCTION = """You write narration scripts for short autonomous product demo videos.
 
@@ -39,18 +48,6 @@ conversational and confident, suitable for a text-to-speech voiceover.
 Respond with ONLY a JSON array of strings, one per step, in order. No other text."""
 
 
-def _pick_model(client: genai.Client) -> str:
-    try:
-        for model in client.models.list():
-            name = getattr(model, "name", "") or ""
-            actions = getattr(model, "supported_actions", None) or []
-            if "generateContent" in actions and "flash" in name.lower() and "preview" not in name.lower():
-                return name.removeprefix("models/")
-    except Exception as err:
-        print(f"[script_writer] Model listing failed, using fallback list: {err}")
-    return FALLBACK_MODELS[0]
-
-
 def write_narration(action_log: ActionLog, repo_context: str) -> None:
     """Mutates action_log in place, setting `.narration` on each step."""
     api_key = os.environ.get("GEMINI_API_KEY")
@@ -64,31 +61,36 @@ def write_narration(action_log: ActionLog, repo_context: str) -> None:
         f"ACTION LOG ({len(action_log.steps)} steps):\n{action_log.as_prompt_text()}"
     )
 
-    models_to_try = [_pick_model(client), *FALLBACK_MODELS]
     last_error: Exception | None = None
 
-    for model in dict.fromkeys(models_to_try):  # dedupe, preserve order
-        try:
-            response = client.models.generate_content(
-                model=model,
-                contents=prompt,
-                config=types.GenerateContentConfig(
-                    system_instruction=SYSTEM_INSTRUCTION,
-                    response_mime_type="application/json",
-                    temperature=0.6,
-                ),
-            )
-            lines = json.loads(response.text)
-            if not isinstance(lines, list) or len(lines) != len(action_log.steps):
-                raise ValueError(f"Expected {len(action_log.steps)} narration lines, got {lines!r}")
+    for model in FALLBACK_MODELS:
+        for attempt in range(1, MAX_RETRIES_PER_MODEL + 1):
+            try:
+                response = client.models.generate_content(
+                    model=model,
+                    contents=prompt,
+                    config=types.GenerateContentConfig(
+                        system_instruction=SYSTEM_INSTRUCTION,
+                        response_mime_type="application/json",
+                        temperature=0.6,
+                    ),
+                )
+                lines = json.loads(response.text)
+                if not isinstance(lines, list) or len(lines) != len(action_log.steps):
+                    raise ValueError(f"Expected {len(action_log.steps)} narration lines, got {lines!r}")
 
-            for step, line in zip(action_log.steps, lines):
-                step.narration = str(line)
-            print(f"[script_writer] Narration written using model {model}")
-            return
-        except Exception as err:
-            print(f"[script_writer] Model {model} failed: {err}")
-            last_error = err
-            continue
+                for step, line in zip(action_log.steps, lines):
+                    step.narration = str(line)
+                print(f"[script_writer] Narration written using model {model} (attempt {attempt})")
+                return
+            except Exception as err:
+                last_error = err
+                is_overloaded = "503" in str(err) or "UNAVAILABLE" in str(err)
+                if is_overloaded and attempt < MAX_RETRIES_PER_MODEL:
+                    print(f"[script_writer] Model {model} overloaded, retrying in {RETRY_DELAY_SECONDS}s: {err}")
+                    time.sleep(RETRY_DELAY_SECONDS)
+                    continue
+                print(f"[script_writer] Model {model} failed: {err}")
+                break
 
     raise RuntimeError(f"All Gemini models failed to produce narration: {last_error}")
