@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { motion } from "framer-motion";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
@@ -23,33 +26,60 @@ const PIPELINE_STEPS = [
   },
 ];
 
+const fadeUp = {
+  hidden: { opacity: 0, y: 16 },
+  show: { opacity: 1, y: 0 },
+};
+
+const stagger = {
+  hidden: {},
+  show: { transition: { staggerChildren: 0.08 } },
+};
+
 export default function LandingPage() {
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-20">
       <Landing />
 
-      <section className="mt-24">
-        <h2 className="text-center text-sm font-medium tracking-wide text-muted-foreground uppercase">
+      <motion.section
+        initial="hidden"
+        whileInView="show"
+        viewport={{ once: true, margin: "-80px" }}
+        variants={stagger}
+        className="mt-24"
+      >
+        <motion.h2
+          variants={fadeUp}
+          className="text-center text-sm font-medium tracking-wide text-muted-foreground uppercase"
+        >
           How it works
-        </h2>
+        </motion.h2>
         <div className="mt-6 grid gap-4 sm:grid-cols-2">
           {PIPELINE_STEPS.map((step, i) => (
-            <Card key={step.title}>
-              <CardContent className="flex gap-4">
-                <span className="font-mono text-sm text-primary">
-                  {String(i + 1).padStart(2, "0")}
-                </span>
-                <div>
-                  <h3 className="font-medium">{step.title}</h3>
-                  <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
-                </div>
-              </CardContent>
-            </Card>
+            <motion.div key={step.title} variants={fadeUp} whileHover={{ y: -3 }} transition={{ duration: 0.2 }}>
+              <Card className="h-full transition-colors hover:border-primary/40">
+                <CardContent className="flex gap-4">
+                  <span className="font-mono text-sm text-primary">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <div>
+                    <h3 className="font-medium">{step.title}</h3>
+                    <p className="mt-1 text-sm text-muted-foreground">{step.body}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </motion.div>
           ))}
         </div>
-      </section>
+      </motion.section>
 
-      <section className="mt-16 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground">
+      <motion.section
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.4 }}
+        className="mt-16 rounded-xl border border-border bg-card p-5 text-sm text-muted-foreground"
+      >
         <p>
           <span className="font-medium text-foreground">Honest status:</span> the generation
           pipeline above is real and has been run end to end in production - not a mockup.
@@ -66,16 +96,29 @@ export default function LandingPage() {
           </a>{" "}
           for the actual proof, including real bugs found and fixed along the way.
         </p>
-      </section>
+      </motion.section>
 
-      <div className="mt-16 flex flex-col items-center gap-3 text-center">
+      <motion.div
+        initial={{ opacity: 0, y: 16 }}
+        whileInView={{ opacity: 1, y: 0 }}
+        viewport={{ once: true }}
+        transition={{ duration: 0.4 }}
+        className="mt-16 flex flex-col items-center gap-3 text-center"
+      >
         <Badge variant="outline" className="text-muted-foreground">
           Free to try - sign in with GitHub to get started
         </Badge>
-        <Button size="lg" nativeButton={false} render={<Link href="/generate" />}>
-          Generate a demo video →
-        </Button>
-      </div>
+        <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+          <Button
+            size="lg"
+            nativeButton={false}
+            render={<Link href="/generate" />}
+            className="shadow-[0_0_30px_-10px_var(--primary)]"
+          >
+            Generate a demo video →
+          </Button>
+        </motion.div>
+      </motion.div>
     </main>
   );
 }

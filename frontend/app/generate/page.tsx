@@ -127,7 +127,9 @@ export default function GeneratePage() {
               Sign in to generate a demo video - this keeps the free GitHub Actions pipeline from
               being abused by anonymous requests.
             </p>
-            <Button onClick={() => signIn("github")}>Sign in with GitHub</Button>
+            <motion.div whileHover={{ scale: 1.04 }} whileTap={{ scale: 0.97 }}>
+              <Button onClick={() => signIn("github")}>Sign in with GitHub</Button>
+            </motion.div>
           </CardContent>
         </Card>
       ) : (
@@ -155,9 +157,11 @@ export default function GeneratePage() {
                 placeholder="https://github.com/you/your-repo"
               />
             </div>
-            <Button type="submit" disabled={submitting} className="w-full" size="lg">
-              {submitting ? "Submitting..." : "Generate demo video"}
-            </Button>
+            <motion.div whileHover={{ scale: submitting ? 1 : 1.02 }} whileTap={{ scale: submitting ? 1 : 0.98 }}>
+              <Button type="submit" disabled={submitting} className="w-full" size="lg">
+                {submitting ? "Submitting..." : "Generate demo video"}
+              </Button>
+            </motion.div>
             {error && (
               <p className="rounded-lg bg-destructive/10 px-3 py-2 text-sm text-destructive">
                 {error}
@@ -177,12 +181,27 @@ export default function GeneratePage() {
             exit={{ opacity: 0, y: -8 }}
             transition={{ duration: 0.25 }}
           >
-            <Card className="mt-6">
+            <Card
+              className={`mt-6 transition-shadow ${
+                job.status === "running" || job.status === "queued"
+                  ? "shadow-[0_0_30px_-14px_var(--primary)]"
+                  : ""
+              }`}
+            >
               <CardHeader className="flex-row items-center justify-between">
                 <CardTitle className="font-mono text-xs text-muted-foreground">
                   Job {job.id}
                 </CardTitle>
-                <Badge className={`border ${STATUS_STYLES[job.status]}`}>{job.status}</Badge>
+                <Badge className={`gap-1.5 border ${STATUS_STYLES[job.status]}`}>
+                  {(job.status === "running" || job.status === "queued") && (
+                    <motion.span
+                      className="h-1.5 w-1.5 rounded-full bg-current"
+                      animate={{ opacity: [1, 0.3, 1] }}
+                      transition={{ duration: 1.2, repeat: Infinity, ease: "easeInOut" }}
+                    />
+                  )}
+                  {job.status}
+                </Badge>
               </CardHeader>
               <CardContent>
                 <ul className="space-y-2">
@@ -216,17 +235,22 @@ export default function GeneratePage() {
                 )}
 
                 {job.videoUrl && (
-                  <motion.a
-                    initial={{ opacity: 0 }}
-                    animate={{ opacity: 1 }}
-                    transition={{ delay: 0.1 }}
-                    href={job.videoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-4 inline-block text-sm font-medium text-primary hover:underline"
+                  <motion.div
+                    initial={{ opacity: 0, y: 8 }}
+                    animate={{ opacity: 1, y: 0 }}
+                    transition={{ delay: 0.1, duration: 0.3 }}
                   >
-                    View result →
-                  </motion.a>
+                    <motion.a
+                      whileHover={{ scale: 1.02 }}
+                      whileTap={{ scale: 0.98 }}
+                      href={job.videoUrl}
+                      target="_blank"
+                      rel="noreferrer"
+                      className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-[0_0_24px_-8px_var(--primary)]"
+                    >
+                      Watch your video →
+                    </motion.a>
+                  </motion.div>
                 )}
               </CardContent>
             </Card>

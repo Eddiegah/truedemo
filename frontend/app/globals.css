@@ -101,3 +101,56 @@ body {
     @apply font-sans;
   }
 }
+
+/* Slow-drifting emerald glow behind the page content - CSS-only (no JS,
+   no re-render cost) and transform-only so it stays smooth on low-end
+   devices. Fixed + pointer-events-none so it never intercepts input. */
+.ambient-glow {
+  position: fixed;
+  inset: 0;
+  z-index: -1;
+  pointer-events: none;
+  overflow: hidden;
+}
+
+.ambient-glow::before,
+.ambient-glow::after {
+  content: "";
+  position: absolute;
+  width: 60vmax;
+  height: 60vmax;
+  border-radius: 50%;
+  filter: blur(120px);
+  opacity: 0.16;
+  background: oklch(69.6% 0.17 162.48);
+  animation: drift 22s ease-in-out infinite alternate;
+}
+
+.ambient-glow::before {
+  top: -20vmax;
+  left: -15vmax;
+}
+
+.ambient-glow::after {
+  bottom: -25vmax;
+  right: -15vmax;
+  opacity: 0.1;
+  animation-delay: -11s;
+  animation-duration: 26s;
+}
+
+@keyframes drift {
+  from {
+    transform: translate(0, 0) scale(1);
+  }
+  to {
+    transform: translate(6vmax, 4vmax) scale(1.15);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ambient-glow::before,
+  .ambient-glow::after {
+    animation: none;
+  }
+}

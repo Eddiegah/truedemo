@@ -1,16 +1,9 @@
 import Link from "next/link";
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Badge } from "@/components/ui/badge";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-
-const STATUS_STYLES: Record<string, string> = {
-  queued: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  running: "bg-amber-500/15 text-amber-400 border-amber-500/20",
-  completed: "bg-primary/15 text-primary border-primary/20",
-  failed: "bg-destructive/15 text-destructive border-destructive/20",
-};
+import { LibraryList } from "./library-list";
 
 export default async function LibraryPage() {
   const session = await auth();
@@ -49,31 +42,7 @@ export default async function LibraryPage() {
           </CardContent>
         </Card>
       ) : (
-        <div className="mt-6 space-y-3">
-          {jobs.map((job) => (
-            <Card key={job.id}>
-              <CardHeader className="flex-row items-center justify-between">
-                <CardTitle className="truncate text-sm font-medium">{job.url}</CardTitle>
-                <Badge className={`border ${STATUS_STYLES[job.status] ?? ""}`}>{job.status}</Badge>
-              </CardHeader>
-              <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
-                <span>{new Date(job.createdAt).toLocaleString()}</span>
-                {job.videoUrl ? (
-                  <a
-                    href={job.videoUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="font-medium text-primary hover:underline"
-                  >
-                    Watch →
-                  </a>
-                ) : job.errorMessage ? (
-                  <span className="text-destructive">{job.errorMessage}</span>
-                ) : null}
-              </CardContent>
-            </Card>
-          ))}
-        </div>
+        <LibraryList jobs={jobs.map((j) => ({ ...j, createdAt: j.createdAt.toISOString() }))} />
       )}
     </main>
   );

@@ -15,7 +15,7 @@ from piper.voice import PiperVoice
 from action_log import ActionLog
 
 VOICE_NAME = "en_US-lessac-medium"
-DOWNLOAD_TIMEOUT_SECONDS = 60
+DOWNLOAD_TIMEOUT_SECONDS = 90
 
 
 def _ensure_voice(voices_dir: Path) -> tuple[Path, Path]:
