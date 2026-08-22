@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { motion } from "framer-motion";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -42,15 +43,10 @@ export function LibraryList({ jobs }: { jobs: LibraryJob[] }) {
             </CardHeader>
             <CardContent className="flex items-center justify-between text-xs text-muted-foreground">
               <span>{new Date(job.createdAt).toLocaleString()}</span>
-              {job.videoUrl ? (
-                <a
-                  href={job.videoUrl}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="font-medium text-primary hover:underline"
-                >
+              {job.videoUrl && job.status === "completed" ? (
+                <Link href={`/v/${job.id}`} className="font-medium text-primary hover:underline">
                   Watch →
-                </a>
+                </Link>
               ) : job.errorMessage ? (
                 <span className="text-destructive">{job.errorMessage}</span>
               ) : null}

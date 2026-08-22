@@ -243,9 +243,7 @@ export default function GeneratePage() {
                     <motion.a
                       whileHover={{ scale: 1.02 }}
                       whileTap={{ scale: 0.98 }}
-                      href={job.videoUrl}
-                      target="_blank"
-                      rel="noreferrer"
+                      href={`/v/${job.id}`}
                       className="mt-4 inline-flex items-center gap-1.5 rounded-lg bg-primary px-3 py-2 text-sm font-medium text-primary-foreground shadow-[0_0_24px_-8px_var(--primary)]"
                     >
                       Watch your video →
