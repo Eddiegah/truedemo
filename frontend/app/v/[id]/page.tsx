@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import { prisma } from "@/lib/prisma";
 import { ShareActions } from "./share-actions";
@@ -34,19 +35,7 @@ export default async function WatchPage({ params }: Props) {
   const { id } = await params;
   const job = await getWatchableJob(id);
 
-  if (!job) {
-    return (
-      <main className="mx-auto flex min-h-screen max-w-2xl flex-col items-center justify-center px-4 text-center">
-        <h1 className="text-2xl font-bold tracking-tight">Video not found</h1>
-        <p className="mt-2 text-sm text-muted-foreground">
-          This video doesn&apos;t exist, or hasn&apos;t finished generating yet.
-        </p>
-        <Link href="/generate" className="mt-6 text-sm font-medium text-primary hover:underline">
-          Generate your own →
-        </Link>
-      </main>
-    );
-  }
+  if (!job) notFound();
 
   return (
     <main className="mx-auto min-h-screen max-w-3xl px-4 py-16">
