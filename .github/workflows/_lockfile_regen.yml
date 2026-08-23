@@ -12,7 +12,7 @@ jobs:
       - uses: actions/setup-node@v4
         with:
           node-version: "24"
-      - run: npm install --package-lock-only
+      - run: npm install --package-lock-only --ignore-scripts
       - run: npm ci
       - uses: actions/upload-artifact@v4
         with:
