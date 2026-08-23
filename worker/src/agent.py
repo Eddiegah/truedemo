@@ -69,10 +69,12 @@ def _screenshot(page: Page, output_dir: Path, step: int) -> str:
     return str(path)
 
 
-def _find_fillable_input(page: Page, visited_labels: set[str]) -> tuple[str, Locator, str] | None:
-    """Returns (description, locator, value) for the first visible, empty,
-    enabled text-like input not yet interacted with - filling a real field
-    beats only ever clicking links, since it's what actually shows a
+def _find_fillable_input(
+    page: Page, visited_labels: set[str]
+) -> tuple[str, Locator, str, str] | None:
+    """Returns (description, locator, value, label) for the first visible,
+    empty, enabled text-like input not yet interacted with - filling a real
+    field beats only ever clicking links, since it's what actually shows a
     feature (e.g. a search box) working rather than just existing."""
     elements = page.locator(INPUT_SELECTOR).all()
     for el in elements:
@@ -100,7 +102,7 @@ def _find_fillable_input(page: Page, visited_labels: set[str]) -> tuple[str, Loc
                 continue
 
             value = _sample_value_for(hint)
-            return f'Typed "{value}" into "{label}"', el, value
+            return f'Typed "{value}" into "{label}"', el, value, label
         except PlaywrightError:
             continue
     return None
@@ -108,8 +110,8 @@ def _find_fillable_input(page: Page, visited_labels: set[str]) -> tuple[str, Loc
 
 def _find_next_candidate(
     page: Page, base_url: str, visited_urls: set[str], visited_labels: set[str]
-) -> tuple[str, str | Locator] | None:
-    """Returns (description, target) for the first unvisited, in-app,
+) -> tuple[str, str | Locator, str] | None:
+    """Returns (description, target, label) for the first unvisited, in-app,
     non-skippable clickable element found on the page, or None. `target`
     is a URL string for links (navigated via page.goto) or the element's
     own Locator for buttons (clicked directly - never re-queried by text,
@@ -136,7 +138,7 @@ def _find_next_candidate(
 
             label = text[:60]
             description = f"Clicked \"{label}\"" if tag == "button" else f"Navigated to \"{label}\""
-            return description, (resolved if tag == "a" else el)
+            return description, (resolved if tag == "a" else el), label
         except PlaywrightError:
             continue
     return None
@@ -168,8 +170,8 @@ def explore(url: str, output_dir: Path) -> ActionLog:
 
             try:
                 if fill_candidate:
-                    description, locator, value = fill_candidate
-                    visited_labels.add(description.split('"')[3])
+                    description, locator, value, label = fill_candidate
+                    visited_labels.add(label)
                     locator.fill(value, timeout=ACTION_TIMEOUT_MS)
                     page.wait_for_timeout(300)
                     try:
@@ -181,8 +183,8 @@ def explore(url: str, output_dir: Path) -> ActionLog:
                     candidate = _find_next_candidate(page, url, visited_urls, visited_labels)
                     if candidate is None:
                         break
-                    description, target = candidate
-                    visited_labels.add(description.split('"')[1])
+                    description, target, label = candidate
+                    visited_labels.add(label)
 
                     if isinstance(target, str):
                         page.goto(target, wait_until="domcontentloaded")
