@@ -1,6 +1,6 @@
 import type { MetadataRoute } from "next";
 
-const SITE_URL = "https://frontend-dun-chi-56.vercel.app";
+const SITE_URL = "https://truedemo.vercel.app";
 
 // Only the static marketing pages - individual /v/[id] share pages aren't
 // listed here since they're dynamic, per-user content, not pages meant for

@@ -14,7 +14,7 @@ const geistMono = Geist_Mono({
   subsets: ["latin"],
 });
 
-const SITE_URL = "https://frontend-dun-chi-56.vercel.app";
+const SITE_URL = "https://truedemo.vercel.app";
 const TITLE = "TrueDemo — demo videos that understand your code";
 const DESCRIPTION =
   "Paste a live app URL and its repo. Get a narrated demo video that's technically accurate, not marketing fluff.";

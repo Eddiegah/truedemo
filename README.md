@@ -1,6 +1,6 @@
 <div align="center">
 
-<img src="https://frontend-dun-chi-56.vercel.app/opengraph-image" alt="TrueDemo" width="100%" />
+<img src="https://truedemo.vercel.app/opengraph-image" alt="TrueDemo" width="100%" />
 
 # TrueDemo
 
@@ -9,7 +9,7 @@
 Every other tool guesses what your product does from its UI.
 TrueDemo reads your actual source and gets it right.
 
-[![Live demo](https://img.shields.io/badge/▶_Launch_TrueDemo-10b981?style=for-the-badge)](https://frontend-dun-chi-56.vercel.app)
+[![Live demo](https://img.shields.io/badge/▶_Launch_TrueDemo-10b981?style=for-the-badge)](https://truedemo.vercel.app)
 
 [![Process Job](https://github.com/Eddiegah/truedemo/actions/workflows/process-job.yml/badge.svg)](https://github.com/Eddiegah/truedemo/actions/workflows/process-job.yml)
 [![Next.js](https://img.shields.io/badge/Next.js-16-black?logo=next.js&logoColor=white)](https://nextjs.org)

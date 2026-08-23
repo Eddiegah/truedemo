@@ -9,6 +9,6 @@ export default function robots(): MetadataRoute.Robots {
       // no reason to invite crawling); API routes aren't pages.
       disallow: ["/library", "/api/"],
     },
-    sitemap: "https://frontend-dun-chi-56.vercel.app/sitemap.xml",
+    sitemap: "https://truedemo.vercel.app/sitemap.xml",
   };
 }
