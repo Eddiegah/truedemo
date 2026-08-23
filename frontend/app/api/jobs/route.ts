@@ -3,10 +3,30 @@ import { prisma } from "@/lib/prisma";
 import { dispatchJob } from "@/lib/github";
 import { auth } from "@/auth";
 
+// Every job burns real, shared, free-tier quota that every signed-in user
+// draws from - one GEMINI_API_KEY for the whole deployment, and GitHub
+// Actions minutes on this repo. Without a cap, one account submitting in a
+// loop could starve everyone else's free tier, not just their own. Kept
+// generous enough for genuine testing.
+const RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000;
+const RATE_LIMIT_MAX_JOBS = 5;
+
 export async function POST(req: NextRequest) {
   const session = await auth();
   if (!session?.user?.id) {
     return NextResponse.json({ error: "Sign in to generate a demo video." }, { status: 401 });
+  }
+
+  const recentJobCount = await prisma.job.count({
+    where: { userId: session.user.id, createdAt: { gte: new Date(Date.now() - RATE_LIMIT_WINDOW_MS) } },
+  });
+  if (recentJobCount >= RATE_LIMIT_MAX_JOBS) {
+    return NextResponse.json(
+      {
+        error: `You've hit the limit of ${RATE_LIMIT_MAX_JOBS} videos per hour - this keeps the free pipeline available for everyone. Try again in a bit.`,
+      },
+      { status: 429 }
+    );
   }
 
   let body: { url?: string; repoUrl?: string };
