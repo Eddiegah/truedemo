@@ -43,7 +43,6 @@ export default async function WatchPage({ params }: Props) {
       <h1 className="mt-1 truncate text-2xl font-bold tracking-tight">{job.url}</h1>
 
       <div className="mt-6 overflow-hidden rounded-xl border border-border bg-card">
-        {/* eslint-disable-next-line jsx-a11y/media-has-caption */}
         <video src={job.videoUrl!} controls preload="metadata" className="w-full" />
       </div>
 

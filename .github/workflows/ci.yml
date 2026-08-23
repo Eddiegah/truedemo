@@ -24,13 +24,16 @@ jobs:
         with:
           # Matches Vercel's actual production runtime (confirmed via
           # `vercel project ls`) and local dev - not an arbitrary LTS
-          # pick. A version mismatch here is exactly what caused this
-          # workflow's first real run to fail: `npm ci` under Node 22
-          # rejected a lockfile that installs cleanly under Node 24.
+          # pick. (This workflow's first real run also failed at `npm
+          # ci` - a Windows-only lockfile gap, not a Node version issue;
+          # see the README's Verification section for the full story.)
           node-version: "24"
 
       - name: Install dependencies
         run: npm ci
+
+      - name: Lint
+        run: npm run lint
 
       - name: Type-check and build
         run: npm run build
