@@ -49,7 +49,7 @@ This isn't a landing page for a product that half-exists. The pipeline, the UI, 
 - 🔐 **GitHub sign-in** - real OAuth via next-auth, gating generation both client- and server-side.
 - 📼 **Video library** - every video you generate is saved to your account.
 - 🔗 **Shareable public links** - `/v/[id]` gives every finished video its own no-login-required watch page with real OG previews, a copy-link button, and a download link.
-- ✅ **CI on every push** - a real GitHub Actions workflow builds/type-checks the frontend and runs a unit test suite against the worker's pure logic, so regressions get caught automatically instead of waiting for the next manual retest.
+- ✅ **CI on every push** - a real GitHub Actions workflow lints/type-checks/builds the frontend and runs a 43-test unit suite against the worker (every module with mockable logic: exploration, repo grounding, narration, TTS, and video publishing - each mocked at its real external boundary, so the suite runs in a couple of seconds with no API keys or network calls), so regressions get caught automatically instead of waiting for the next manual retest.
 - ⚡ **Fast, animated UI** - shadcn/ui + Framer Motion, dark-mode-first, optimistic updates, live status polling.
 - 💸 **Genuinely free to run** - the entire stack (see [Architecture](#architecture)) runs on free tiers, no card required anywhere, with per-user rate limiting (5 videos/hour) so one account can't exhaust the shared free-tier Gemini quota for everyone else.
 
