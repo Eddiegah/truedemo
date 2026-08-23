@@ -1,0 +1,56 @@
+name: CI
+
+# Runs on every push and PR - catches exactly the kind of thing this
+# project has hit for real: a TypeScript error, a build break, or a
+# regression in the worker's pure logic (like the loading.tsx change
+# that silently broke a notFound() status code, documented in the
+# README's Verification section). None of these needed a human to
+# manually retest after every change - a CI check does it automatically.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  frontend:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Type-check and build
+        run: npm run build
+        env:
+          # A real DATABASE_URL isn't needed to build - Next.js only
+          # needs Prisma's generated client, not a live connection - but
+          # Prisma's schema requires the env var to be set at all.
+          DATABASE_URL: "postgresql://ci:ci@localhost:5432/ci"
+
+  worker:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: worker
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Install dependencies
+        run: |
+          pip install -r requirements.txt
+          pip install -r requirements-dev.txt
+
+      - name: Run unit tests
+        run: pytest tests/ -v

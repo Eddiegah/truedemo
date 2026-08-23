@@ -1,0 +1,3 @@
+# Test-only dependencies - not needed by the production pipeline
+# (worker/requirements.txt), only by CI and local test runs.
+pytest==9.1.1
