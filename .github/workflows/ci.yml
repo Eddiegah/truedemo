@@ -22,7 +22,12 @@ jobs:
 
       - uses: actions/setup-node@v4
         with:
-          node-version: "22"
+          # Matches Vercel's actual production runtime (confirmed via
+          # `vercel project ls`) and local dev - not an arbitrary LTS
+          # pick. A version mismatch here is exactly what caused this
+          # workflow's first real run to fail: `npm ci` under Node 22
+          # rejected a lockfile that installs cleanly under Node 24.
+          node-version: "24"
 
       - name: Install dependencies
         run: npm ci
