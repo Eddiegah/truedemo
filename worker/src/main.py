@@ -46,6 +46,30 @@ def post_progress(job_id: str, webhook_url: str, webhook_secret: str, stage: str
         print(f"[progress] FAILED to post '{stage}': {err}", file=sys.stderr)
 
 
+def fetch_credentials(job_id: str, webhook_url: str, webhook_secret: str) -> tuple[str, str] | None:
+    """Fetches the optional demo login over the same authenticated channel
+    as progress updates - never via workflow_dispatch inputs, which are
+    visible in this public repo's Actions logs. The frontend nulls the
+    credentials out of the database the moment this call reads them.
+    Never printed, never included in any progress message - a fetch
+    failure just means exploration proceeds without logging in, not a
+    job failure."""
+    try:
+        res = requests.get(
+            f"{webhook_url}/api/jobs/{job_id}/credentials",
+            headers={"x-webhook-secret": webhook_secret},
+            timeout=15,
+        )
+        res.raise_for_status()
+        data = res.json()
+        username, password = data.get("demoUsername"), data.get("demoPassword")
+        if username and password:
+            return username, password
+    except requests.RequestException as err:
+        print(f"[main] Could not fetch demo credentials (continuing without login): {err}", file=sys.stderr)
+    return None
+
+
 def main() -> int:
     parser = argparse.ArgumentParser()
     parser.add_argument("--job-id", required=True)
@@ -66,8 +90,12 @@ def main() -> int:
     work_root = Path(tempfile.mkdtemp(prefix=f"truedemo-{args.job_id}-"))
 
     try:
+        credentials = fetch_credentials(args.job_id, args.webhook_url, args.webhook_secret)
+        if credentials:
+            progress("Demo login provided - will explore behind sign-in")
+
         progress(f"Exploring {args.url} with a real browser...")
-        action_log = explore(args.url, work_root / "screenshots")
+        action_log = explore(args.url, work_root / "screenshots", credentials=credentials)
         progress(f"Explored {len(action_log.steps)} steps of the app")
 
         repo_context = ""

@@ -53,6 +53,9 @@ export default function GeneratePage() {
   const { data: session, status } = useSession();
   const [url, setUrl] = useState("");
   const [repoUrl, setRepoUrl] = useState("");
+  const [showCredentials, setShowCredentials] = useState(false);
+  const [demoUsername, setDemoUsername] = useState("");
+  const [demoPassword, setDemoPassword] = useState("");
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [job, setJob] = useState<Job | null>(null);
@@ -88,10 +91,16 @@ export default function GeneratePage() {
       const res = await fetch("/api/jobs", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url, repoUrl: repoUrl || undefined }),
+        body: JSON.stringify({
+          url,
+          repoUrl: repoUrl || undefined,
+          demoUsername: demoUsername || undefined,
+          demoPassword: demoPassword || undefined,
+        }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? "Failed to submit job.");
+      setDemoPassword(""); // don't linger in memory once submitted
       startPolling(data.jobId);
     } catch (err) {
       setJob(null);
@@ -157,6 +166,60 @@ export default function GeneratePage() {
                 placeholder="https://github.com/you/your-repo"
               />
             </div>
+
+            {showCredentials ? (
+              <div className="space-y-3 rounded-lg border border-border/60 bg-muted/20 p-3">
+                <div className="flex items-center justify-between">
+                  <p className="text-xs font-medium text-muted-foreground">Demo login (optional)</p>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setShowCredentials(false);
+                      setDemoUsername("");
+                      setDemoPassword("");
+                    }}
+                    className="text-xs text-muted-foreground hover:text-foreground"
+                  >
+                    Remove
+                  </button>
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="demoUsername">Email or username</Label>
+                  <Input
+                    id="demoUsername"
+                    autoComplete="off"
+                    value={demoUsername}
+                    onChange={(e) => setDemoUsername(e.target.value)}
+                    placeholder="demo@yourapp.com"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="demoPassword">Password</Label>
+                  <Input
+                    id="demoPassword"
+                    type="password"
+                    autoComplete="off"
+                    value={demoPassword}
+                    onChange={(e) => setDemoPassword(e.target.value)}
+                    placeholder="••••••••"
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">
+                  Use a dedicated test account, never a real password. Stored only until the worker
+                  fetches it once, then permanently cleared - never shown in progress logs or the
+                  video.
+                </p>
+              </div>
+            ) : (
+              <button
+                type="button"
+                onClick={() => setShowCredentials(true)}
+                className="text-sm text-primary hover:underline"
+              >
+                + Add demo login (optional) - explore behind sign-in
+              </button>
+            )}
+
             <motion.div whileHover={{ scale: submitting ? 1 : 1.02 }} whileTap={{ scale: submitting ? 1 : 0.98 }}>
               <Button type="submit" disabled={submitting} className="w-full" size="lg">
                 {submitting ? "Submitting..." : "Generate demo video"}

@@ -34,6 +34,21 @@ XFADE_DURATION = 0.6
 
 MUSIC_VOLUME_DB = -22  # subtle bed, narration stays clearly in front
 
+# Ken Burns pan/zoom on each still screenshot, instead of a flat static
+# frame - real screenshots, motion-graphics-grade polish. Subtle and
+# professional (a 6-8% drift), not a dramatic swoop: the point is to make
+# a still image feel alive without drawing attention to the effect itself.
+FPS = 25
+ZOOM_END = 1.08
+ZOOM_STEP = 0.0006
+# zoompan's `d=` is a hard frame count - once exhausted it stops producing
+# output entirely, which would cut the video track short if underestimated
+# relative to the real (audio-driven) clip length. Overshooting is free:
+# -shortest trims it back to the real duration, and extra zoompan frames
+# just mean the zoom clamps at ZOOM_END sooner and holds - still a clean
+# Ken Burns look, not a bug.
+ZOOMPAN_SAFETY_MARGIN_SECONDS = 1.5
+
 # Common on GitHub's ubuntu-latest images (fonts-dejavu-core is preinstalled).
 # If it's missing, captions are skipped rather than failing the whole video -
 # a cosmetic degradation, not a pipeline failure.
@@ -74,8 +89,31 @@ def _probe_duration(path: Path) -> float:
     return float(json.loads(result.stdout)["format"]["duration"])
 
 
-def _build_clip(screenshot: str, audio: str, caption_file: Path, font: str | None, out_path: Path) -> None:
-    vf_parts = [f"scale={RESOLUTION}:force_original_aspect_ratio=decrease,pad={WIDTH}:{HEIGHT}:(ow-iw)/2:(oh-ih)/2"]
+def _build_clip(
+    screenshot: str,
+    audio: str,
+    caption_file: Path,
+    font: str | None,
+    out_path: Path,
+    audio_duration: float,
+    pan_upper: bool,
+) -> None:
+    # Upscale well past target resolution before zoompan, so the zoomed-in
+    # window is still sampled from a large source image instead of
+    # stretching an already-1280x800 screenshot - avoids soft/blurry zoom.
+    upscale_w, upscale_h = WIDTH * 3, HEIGHT * 3
+    frames = max(1, round((audio_duration + TRAILING_PAD_SECONDS + ZOOMPAN_SAFETY_MARGIN_SECONDS) * FPS))
+    # Two alternating targets for the zoom drift - plain center, and a
+    # slight bias toward the upper third, where the most demo-relevant UI
+    # (headers, primary actions) typically sits. Enough variety across a
+    # multi-step video that clips don't all look identical.
+    y_expr = "(ih*0.35)-(ih/zoom/2)" if pan_upper else "ih/2-(ih/zoom/2)"
+
+    vf_parts = [
+        f"scale={upscale_w}:{upscale_h}:force_original_aspect_ratio=increase,crop={upscale_w}:{upscale_h}",
+        f"zoompan=z='min(zoom+{ZOOM_STEP},{ZOOM_END})':d={frames}:"
+        f"x='iw/2-(iw/zoom/2)':y='{y_expr}':s={WIDTH}x{HEIGHT}:fps={FPS}",
+    ]
     if font:
         vf_parts.append(
             f"drawtext=fontfile={font}:textfile={caption_file}:fontsize=28:fontcolor=white:"
@@ -171,8 +209,17 @@ def assemble_video(action_log: ActionLog, work_dir: Path, output_path: Path) -> 
         caption_file = work_dir / f"caption_{step.step}.txt"
         caption_file.write_text(step.narration or step.description, encoding="utf-8")
 
+        audio_duration = _probe_duration(Path(step.audio_path))
         clip_path = work_dir / f"clip_{step.step}.mp4"
-        _build_clip(step.screenshot_path, step.audio_path, caption_file, font, clip_path)
+        _build_clip(
+            step.screenshot_path,
+            step.audio_path,
+            caption_file,
+            font,
+            clip_path,
+            audio_duration,
+            pan_upper=step.step % 2 == 0,
+        )
         clip_paths.append(clip_path)
 
     if not clip_paths:

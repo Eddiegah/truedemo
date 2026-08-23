@@ -18,6 +18,16 @@ model Job {
   createdAt    DateTime @default(now())
   updatedAt    DateTime @updatedAt
 
+  // Optional demo login so the exploration agent can get past an auth wall
+  // and show real signed-in features - the whole reason a demo tool exists.
+  // Fetched once by the worker over the webhook-secret-authenticated channel
+  // (never through workflow_dispatch inputs, which are visible in this
+  // public repo's Actions logs to anyone), then nulled out immediately after
+  // being read - never persisted longer than the single fetch needs it, and
+  // never included in the public progressLog or any log line.
+  demoUsername String?
+  demoPassword String?
+
   // Nullable, not required: jobs created before auth existed (and any future
   // anonymous/API-submitted jobs) have no owner. The video library only ever
   // queries jobs where userId is set.

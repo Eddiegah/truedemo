@@ -29,7 +29,7 @@ export async function POST(req: NextRequest) {
     );
   }
 
-  let body: { url?: string; repoUrl?: string };
+  let body: { url?: string; repoUrl?: string; demoUsername?: string; demoPassword?: string };
   try {
     body = await req.json();
   } catch {
@@ -41,13 +41,21 @@ export async function POST(req: NextRequest) {
     return NextResponse.json({ error: "A valid http(s) URL is required." }, { status: 400 });
   }
   const repoUrl = body.repoUrl?.trim() || null;
+  const demoUsername = body.demoUsername?.trim() || null;
+  const demoPassword = body.demoPassword || null;
 
   const job = await prisma.job.create({
     data: {
       url,
       repoUrl,
+      demoUsername,
+      demoPassword,
       userId: session.user.id,
       status: "queued",
+      // Never mention credentials were provided, even just "yes/no" - the
+      // progressLog is public (rendered on the dashboard, and readable via
+      // the /v/[id] share page's underlying data) and demo login use is
+      // reported generically by the worker as "Logging in..." instead.
       progressLog: [{ stage: "Job created, dispatching worker...", at: new Date().toISOString() }],
     },
   });

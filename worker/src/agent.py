@@ -69,6 +69,44 @@ def _screenshot(page: Page, output_dir: Path, step: int) -> str:
     return str(path)
 
 
+def _find_login_form(page: Page) -> tuple[Locator, Locator] | None:
+    """Returns (username_field, password_field) for a visible password
+    field and the nearest preceding text/email input in DOM order - works
+    whether or not the fields are wrapped in a semantic <form>, since many
+    modern SPAs don't use one. Getting past a sign-in wall is what lets
+    the agent show real logged-in features instead of stopping at the
+    login page - the whole point of accepting demo credentials at all."""
+    elements = page.locator(
+        "input[type='password'], input[type='text'], input[type='email'], input:not([type])"
+    ).all()
+    last_username: Locator | None = None
+    for el in elements:
+        try:
+            if not el.is_visible() or not el.is_enabled():
+                continue
+            input_type = el.get_attribute("type") or "text"
+            if input_type == "password":
+                if last_username:
+                    return last_username, el
+            else:
+                last_username = el
+        except PlaywrightError:
+            continue
+    return None
+
+
+def _attempt_login(page: Page, username_field: Locator, password_field: Locator, credentials: tuple[str, str]) -> None:
+    username, password = credentials
+    username_field.fill(username, timeout=ACTION_TIMEOUT_MS)
+    password_field.fill(password, timeout=ACTION_TIMEOUT_MS)
+    page.wait_for_timeout(300)
+    try:
+        password_field.press("Enter", timeout=ACTION_TIMEOUT_MS)
+    except PlaywrightError:
+        pass
+    page.wait_for_timeout(1500)  # give the app time to process login and redirect
+
+
 def _find_fillable_input(
     page: Page, visited_labels: set[str]
 ) -> tuple[str, Locator, str, str] | None:
@@ -144,11 +182,12 @@ def _find_next_candidate(
     return None
 
 
-def explore(url: str, output_dir: Path) -> ActionLog:
+def explore(url: str, output_dir: Path, credentials: tuple[str, str] | None = None) -> ActionLog:
     output_dir.mkdir(parents=True, exist_ok=True)
     log = ActionLog()
     visited_urls: set[str] = {url}
     visited_labels: set[str] = set()
+    credentials_used = False
 
     with sync_playwright() as p:
         browser = p.chromium.launch()
@@ -163,13 +202,28 @@ def explore(url: str, output_dir: Path) -> ActionLog:
         last_good_url = page.url
 
         for _ in range(MAX_STEPS):
+            # A login form takes priority over everything else - getting
+            # past a sign-in wall is what unlocks the rest of the real app.
+            # Only attempted once: a login form still present after one
+            # try means the credentials didn't work, and retrying it every
+            # remaining step would just burn the whole exploration on a
+            # dead end instead of falling through to whatever's on screen.
+            login_form = None
+            if credentials and not credentials_used:
+                login_form = _find_login_form(page)
+
             # A fillable input takes priority over a plain navigation/click
             # candidate - actually using a feature is more demo-worthy than
             # just visiting another page.
-            fill_candidate = _find_fillable_input(page, visited_labels)
+            fill_candidate = None if login_form else _find_fillable_input(page, visited_labels)
 
             try:
-                if fill_candidate:
+                if login_form:
+                    username_field, password_field = login_form
+                    _attempt_login(page, username_field, password_field, credentials)
+                    credentials_used = True
+                    description = "Logging in..."
+                elif fill_candidate:
                     description, locator, value, label = fill_candidate
                     visited_labels.add(label)
                     locator.fill(value, timeout=ACTION_TIMEOUT_MS)
